@@ -362,7 +362,6 @@ p { margin: 0 0 1em; }
 .film { background: linear-gradient(180deg, #0d1736, var(--night-0)); padding-bottom: clamp(40px, 6vw, 72px); }
 .film .wrap { width: min(1000px, 100% - 48px); }
 .film video { display: block; width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line); background: #0b122c; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5); }
-.film-note { margin: 12px 0 0; font-size: 0.88rem; color: var(--ink-faint) !important; text-align: center; }
 
 .band h2 { font-size: clamp(2.1rem, 4.4vw, 3.2rem); font-weight: 900; letter-spacing: -0.025em; margin-bottom: 18px; }
 .band p { color: var(--ink-soft); }

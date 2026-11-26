@@ -93,6 +93,18 @@ spec:
                 name: griswold-site
                 port:
                   name: http
+    # People type www. Without this rule the main frontend answers and the
+    # download link returns its HTML. The frontend's certificate covers www.
+    - host: www.chonkbase.net
+      http:
+        paths:
+          - path: /griswold
+            pathType: Prefix
+            backend:
+              service:
+                name: griswold-site
+                port:
+                  name: http
   tls:
     - hosts:
         - chonkbase.net
