@@ -49,7 +49,8 @@ tag="$version-$(date -u +%Y%m%d%H%M%S)"
 $docker_command build --pull -t "$image:$tag" "$stage"
 $docker_command push "$image:$tag"
 
-kubectl apply -f "$root/deploy/k8s.yaml"
-kubectl -n griswold set image deployment/griswold-site "web=$image:$tag"
+# Apply with the real tag filled in, so re-applying never rolls back to a
+# placeholder image.
+sed "s#image: .*griswold-site:latest#image: $image:$tag#" "$root/deploy/k8s.yaml" | kubectl apply -f -
 kubectl -n griswold rollout status deployment/griswold-site --timeout=180s
 echo "Deployed $image:$tag"
