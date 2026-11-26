@@ -1,0 +1,167 @@
+name: Signed Release
+
+# A tag such as v1.2.3 builds a universal Griswold.app, signs it with the
+# Developer ID certificate, has Apple notarize and staple the disk image, and
+# publishes it as a GitHub release. Running it by hand does everything except
+# publish, and keeps the disk image as a workflow artifact.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version without the v prefix, for example 1.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: griswold-signed-release
+  cancel-in-progress: false
+
+jobs:
+  build-sign-notarize:
+    name: Build, sign, notarize, and staple
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      MAC_CERTIFICATE_P12_BASE64: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+      MAC_CERTIFICATE_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+      MAC_SIGNING_IDENTITY: ${{ secrets.MAC_SIGNING_IDENTITY }}
+      APP_STORE_CONNECT_API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Resolve and validate version
+        id: version
+        env:
+          DISPATCH_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$DISPATCH_VERSION"
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version: $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Require signing and notarization secrets
+        run: |
+          set -euo pipefail
+          for variable in \
+            MAC_CERTIFICATE_P12_BASE64 \
+            MAC_CERTIFICATE_PASSWORD \
+            MAC_SIGNING_IDENTITY \
+            APP_STORE_CONNECT_API_KEY_BASE64 \
+            APP_STORE_CONNECT_KEY_ID \
+            APP_STORE_CONNECT_ISSUER_ID; do
+            if [[ -z "${!variable:-}" ]]; then
+              echo "Required GitHub Actions secret is missing: $variable" >&2
+              exit 1
+            fi
+          done
+      - name: Run unit tests
+        run: swift test
+      - name: Build universal application
+        run: |
+          set -euo pipefail
+          scripts/build-app.sh "${{ steps.version.outputs.version }}" "$GITHUB_RUN_NUMBER" "$RUNNER_TEMP/griswold-release"
+      - name: Import Developer ID certificate into a temporary keychain
+        run: |
+          set -euo pipefail
+          cert_path="$RUNNER_TEMP/griswold-developer-id.p12"
+          keychain_path="$RUNNER_TEMP/griswold-release.keychain-db"
+          keychain_password="$(uuidgen)"
+          CERT_PATH="$cert_path" python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          Path(os.environ["CERT_PATH"]).write_bytes(
+              base64.b64decode(os.environ["MAC_CERTIFICATE_P12_BASE64"])
+          )
+          PY
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 3600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          curl -fsSL https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer \
+            -o "$RUNNER_TEMP/DeveloperIDG2CA.cer"
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -A -k "$keychain_path"
+          security import "$cert_path" \
+            -P "$MAC_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$keychain_path"
+          rm -f "$cert_path"
+          security list-keychains -d user -s "$keychain_path" /Library/Keychains/System.keychain
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" \
+            "$keychain_path" >/dev/null
+          security find-identity -v -p codesigning "$keychain_path" | grep -qF "$MAC_SIGNING_IDENTITY"
+          echo "MAC_KEYCHAIN_PATH=$keychain_path" >> "$GITHUB_ENV"
+      - name: Install App Store Connect key
+        run: |
+          set -euo pipefail
+          key_directory="$RUNNER_TEMP/notary-private-keys"
+          mkdir -p "$key_directory"
+          key_path="$key_directory/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          KEY_PATH="$key_path" python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          Path(os.environ["KEY_PATH"]).write_bytes(
+              base64.b64decode(os.environ["APP_STORE_CONNECT_API_KEY_BASE64"])
+          )
+          PY
+          chmod 600 "$key_path"
+          echo "APP_STORE_CONNECT_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+      - name: Install dmgbuild for the styled disk image
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/dmgbuild-venv"
+          "$RUNNER_TEMP/dmgbuild-venv/bin/pip" install --quiet dmgbuild==1.6.5 || true
+          echo "DMGBUILD_PYTHON=$RUNNER_TEMP/dmgbuild-venv/bin/python" >> "$GITHUB_ENV"
+      - name: Sign, notarize, staple, and verify
+        run: |
+          set -euo pipefail
+          scripts/sign-and-package.sh \
+            "$RUNNER_TEMP/griswold-release/Griswold.app" \
+            "${{ steps.version.outputs.version }}" \
+            release-output
+      - name: Upload signed disk image
+        uses: actions/upload-artifact@v4
+        with:
+          name: Griswold-${{ steps.version.outputs.version }}-signed
+          path: |
+            release-output/Griswold-${{ steps.version.outputs.version }}.dmg
+            release-output/Griswold-${{ steps.version.outputs.version }}.dmg.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish GitHub release for tag
+        if: ${{ github.ref_type == 'tag' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            "release-output/Griswold-${{ steps.version.outputs.version }}.dmg" \
+            "release-output/Griswold-${{ steps.version.outputs.version }}.dmg.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --generate-notes \
+            --title "Griswold ${{ steps.version.outputs.version }}"
+      - name: Remove signing material
+        if: always()
+        run: |
+          set +e
+          [[ -n "${MAC_KEYCHAIN_PATH:-}" ]] && security delete-keychain "$MAC_KEYCHAIN_PATH" 2>/dev/null
+          rm -rf "$RUNNER_TEMP/notary-private-keys" "$RUNNER_TEMP/griswold-developer-id.p12"
+          true

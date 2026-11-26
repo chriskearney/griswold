@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Show toolchain
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          swift --version
+      - name: Run unit tests
+        run: swift test
+      - name: Build universal app
+        run: scripts/build-app.sh 0.0.0 "$GITHUB_RUN_NUMBER" "$RUNNER_TEMP/griswold-ci"
+      - name: Package with an ad hoc signature
+        env:
+          MAC_SIGNING_IDENTITY: "-"
+        run: |
+          set -euo pipefail
+          scripts/sign-and-package.sh "$RUNNER_TEMP/griswold-ci/Griswold.app" 0.0.0 "$RUNNER_TEMP/griswold-ci/out"

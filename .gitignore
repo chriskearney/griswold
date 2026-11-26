@@ -1,0 +1,15 @@
+.build/
+build/
+release-output/
+DerivedData/
+*.xcodeproj
+xcuserdata/
+.swiftpm/
+.DS_Store
+*.p12
+*.p8
+*.cer
+*.keychain-db
+.env
+.env.*
+site/download/

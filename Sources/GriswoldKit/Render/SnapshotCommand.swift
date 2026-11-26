@@ -1,0 +1,85 @@
+import CoreGraphics
+import Foundation
+
+/// Command-line front end for `Snapshot`.
+public enum SnapshotCommand {
+    private static let flags = ["--snapshot", "--dump-atlas", "--icon", "--dmg-background"]
+
+    public static func handles(_ arguments: [String]) -> Bool {
+        flags.contains { arguments.contains($0) }
+    }
+
+    public static func run(_ arguments: [String]) -> Int32 {
+        func value(_ flag: String) -> String? {
+            guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else { return nil }
+            return arguments[index + 1]
+        }
+
+        if let path = value("--dump-atlas") {
+            guard let image = Snapshot.atlasImage(), Snapshot.write(image, to: URL(fileURLWithPath: path)) else {
+                FileHandle.standardError.write(Data("could not render the atlas\n".utf8))
+                return 1
+            }
+            return 0
+        }
+
+        if let path = value("--icon") {
+            guard let image = BrandArt.icon(), Snapshot.write(image, to: URL(fileURLWithPath: path)) else {
+                FileHandle.standardError.write(Data("could not render the icon\n".utf8))
+                return 1
+            }
+            return 0
+        }
+
+        if let path = value("--dmg-background") {
+            let scale = value("--scale").flatMap(Double.init) ?? 1
+            guard let image = BrandArt.diskImageBackground(scale: CGFloat(scale)),
+                  Snapshot.write(image, to: URL(fileURLWithPath: path)) else {
+                FileHandle.standardError.write(Data("could not render the disk image background\n".utf8))
+                return 1
+            }
+            return 0
+        }
+
+        guard let path = value("--snapshot") else { return 64 }
+        var options = Snapshot.Options()
+        if let width = value("--width").flatMap(Double.init), let height = value("--height").flatMap(Double.init) {
+            options.size = CGSize(width: width, height: height)
+        }
+        if let scale = value("--scale").flatMap(Double.init) { options.scale = CGFloat(scale) }
+        if let seconds = value("--seconds").flatMap(Double.init) { options.seconds = seconds }
+        if let lead = value("--lead").flatMap(Double.init) { options.lead = lead }
+        if let preset = value("--preset"), let match = Preset.all.first(where: { $0.id == preset }) {
+            match.apply(&options.config)
+        }
+        if let style = value("--style").flatMap(BulbStyle.init(rawValue:)) { options.config.bulbStyle = style }
+        if let palette = value("--palette").flatMap(LightPalette.init(rawValue:)) { options.config.palette = palette }
+        if let pattern = value("--pattern").flatMap(LightPattern.init(rawValue:)) { options.config.pattern = pattern }
+        if let depth = value("--accumulation").flatMap(Accumulation.init(rawValue:)) { options.config.accumulation = depth }
+        if let intensity = value("--intensity").flatMap(Double.init) { options.config.snowIntensity = intensity }
+        if let surprise = value("--surprise").flatMap(SurpriseKind.init(rawValue:)) { options.surprise = surprise }
+        if arguments.contains("--bottom") { options.config.edgeBottom = true }
+        if arguments.contains("--no-snow") { options.config.snowEnabled = false }
+        if arguments.contains("--no-lights") { options.config.lightsEnabled = false }
+        if arguments.contains("--light-windows") { options.darkWindows = false }
+        if arguments.contains("--transparent") { options.transparent = true }
+        if arguments.contains("--no-menu-bar") { options.topInset = 0 }
+        options.windows = arguments.contains("--no-windows") ? [] : Snapshot.defaultWindows(for: options.size)
+
+        guard var image = Snapshot.render(options) else {
+            FileHandle.standardError.write(Data("could not render the snapshot\n".utf8))
+            return 1
+        }
+        // --crop x,y,w,h in points.
+        if let crop = value("--crop")?.split(separator: ",").compactMap({ Double($0) }), crop.count == 4 {
+            let k = Double(options.scale)
+            let rect = CGRect(x: crop[0] * k, y: crop[1] * k, width: crop[2] * k, height: crop[3] * k)
+            if let cropped = image.cropping(to: rect) { image = cropped }
+        }
+        guard Snapshot.write(image, to: URL(fileURLWithPath: path)) else {
+            FileHandle.standardError.write(Data("could not render the snapshot\n".utf8))
+            return 1
+        }
+        return 0
+    }
+}
