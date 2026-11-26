@@ -3,7 +3,8 @@
 #
 #   deploy/deploy-site.sh 1.0.0
 #
-# Needs gh (signed in), docker, and kubectl pointed at the cluster. Set
+# Needs docker and kubectl pointed at the cluster (and gh, signed in, only if
+# the repository is private). Set
 # DOCKER="sudo docker" where docker needs root, and KUBECONFIG for the cluster.
 set -euo pipefail
 
@@ -23,9 +24,15 @@ mkdir -p "$stage/site/download" "$stage/release"
 cp -R "$root/site/." "$stage/site/"
 cp "$root/deploy/nginx.conf" "$root/deploy/Dockerfile" "$stage/"
 
-gh release download "v$version" --repo "$repository" --dir "$stage/release" \
-  --pattern "Griswold-$version.dmg" --pattern "Griswold-$version.dmg.sha256"
+# The repository is public, so the release can be fetched without the GitHub
+# API (and its rate limit). Fall back to gh for a private fork.
 dmg="$stage/release/Griswold-$version.dmg"
+base="https://github.com/$repository/releases/download/v$version"
+if ! { curl -fsSL -o "$dmg" "$base/Griswold-$version.dmg" && curl -fsSL -o "$dmg.sha256" "$base/Griswold-$version.dmg.sha256"; }; then
+  rm -f "$dmg" "$dmg.sha256"
+  gh release download "v$version" --repo "$repository" --dir "$stage/release" \
+    --pattern "Griswold-$version.dmg" --pattern "Griswold-$version.dmg.sha256"
+fi
 expected="$(awk '{print $1}' "$dmg.sha256")"
 actual="$(sha256sum "$dmg" 2>/dev/null | awk '{print $1}' || shasum -a 256 "$dmg" | awk '{print $1}')"
 if [[ "$expected" != "$actual" ]]; then

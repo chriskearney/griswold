@@ -1049,4 +1049,20 @@
   });
   resize();
   refreshPanel();
+
+  // For checking the page without a person at it: ?shot=squirrel (or sled, santa)
+  // runs the simulation forward a fixed number of steps and draws one frame.
+  const shot = new URLSearchParams(location.search).get('shot');
+  if (shot) {
+    window.addEventListener('load', () => {
+      state.playing = false;
+      cancelAnimationFrame(raf);
+      const steps = Number(new URLSearchParams(location.search).get('steps') || 70);
+      syncLedges();
+      for (let i = 0; i < 1800; i++) { now += 1 / 30; stepSnow(1 / 30, now); }
+      surprise(shot);
+      for (let i = 0; i < steps; i++) { now += 1 / 60; syncLedges(); stepSnow(1 / 60, now); stepSurprises(1 / 60); }
+      render(now, false);
+    });
+  }
 })();
