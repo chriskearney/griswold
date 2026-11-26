@@ -62,4 +62,8 @@ strip lights-c9     62  --style c9 --palette classic
 strip lights-icicle 100 --style icicle --palette icy
 strip lights-star   62  --style star --palette gold
 
+# The demo film (720p for the page) and the still shown before it plays.
+"$bin" --demo-video "$out/demo.mp4" --fps 30 --scale 1 --bitrate 2600000 --poster "$work/demo-poster.png" 2>/dev/null
+jpeg "$work/demo-poster.png" "$out/demo-poster.jpg" 1280
+
 ls -la "$out"

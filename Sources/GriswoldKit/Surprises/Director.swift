@@ -321,6 +321,13 @@ public final class Director {
         world.boost = boost
     }
 
+    /// Skips ahead to the point where frost starts melting away.
+    public func meltFrost(now: Double) {
+        guard let start = frostStart else { return }
+        let meltBegins = Director.frostDuration - 9
+        if now - start < meltBegins { frostStart = now - meltBegins }
+    }
+
     /// Stops anything in flight (used when the app is switched off).
     public func reset() {
         let serial = world.blazeSerial

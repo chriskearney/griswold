@@ -43,7 +43,8 @@ swift run -c release Griswold --snapshot out.png --seconds 120 --scale 2
 swift run -c release Griswold --snapshot santa.png --surprise santa --lead 4
 swift run -c release Griswold --snapshot icicles.png --preset wonderland
 scripts/make-icon.sh             # regenerate Resources/AppIcon.icns
-scripts/render-site-assets.sh    # every picture on the website
+scripts/render-site-assets.sh    # every picture on the website, and the demo film
+swift run -c release Griswold --demo-video demo.mp4   # the captioned 45-second film, 1080p60
 ```
 
 `Griswold --ui-shots <dir>` photographs the real popover and settings window (it opens them on screen for a few seconds).

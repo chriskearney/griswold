@@ -17,6 +17,7 @@ enum ArtPainter {
         case .squirrelStride: squirrel(c, gathered: false)
         case .squirrelGather: squirrel(c, gathered: true)
         case .sled: sled(c)
+        case .pointer: pointer(c)
         }
     }
 
@@ -429,6 +430,31 @@ enum ArtPainter {
         fillEllipse(c, 55.4, hy + 1, 1.05, 0.95, ink)
         fillEllipse(c, 48.6, hy - 1.3, 1.35, 1.45, ink)
         fillEllipse(c, 49.0, hy - 1.8, 0.45, 0.45, rgb(255, 255, 255))
+    }
+
+    // MARK: Pointer (for the demo video only; the app never draws one)
+
+    private static func pointer(_ c: CGContext) {
+        let arrow = CGMutablePath()
+        arrow.move(to: CGPoint(x: 3, y: 2))
+        arrow.addLine(to: CGPoint(x: 3, y: 21))
+        arrow.addLine(to: CGPoint(x: 7.6, y: 16.8))
+        arrow.addLine(to: CGPoint(x: 10.8, y: 24))
+        arrow.addLine(to: CGPoint(x: 13.6, y: 22.8))
+        arrow.addLine(to: CGPoint(x: 10.4, y: 15.8))
+        arrow.addLine(to: CGPoint(x: 16.6, y: 15.8))
+        arrow.closeSubpath()
+        c.saveGState()
+        c.setShadow(offset: CGSize(width: 0, height: -1), blur: 2.5, color: CGColor(gray: 0, alpha: 0.45))
+        c.addPath(arrow)
+        c.setFillColor(rgb(0, 0, 0))
+        c.fillPath()
+        c.restoreGState()
+        c.addPath(arrow)
+        c.setStrokeColor(rgb(255, 255, 255))
+        c.setLineWidth(1.5)
+        c.setLineJoin(.miter)
+        c.strokePath()
     }
 
     // MARK: Saucer sled and rider (faces right)

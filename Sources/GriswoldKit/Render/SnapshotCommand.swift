@@ -3,7 +3,7 @@ import Foundation
 
 /// Command-line front end for `Snapshot`.
 public enum SnapshotCommand {
-    private static let flags = ["--snapshot", "--dump-atlas", "--dump-art", "--icon", "--dmg-background", "--link-preview"]
+    private static let flags = ["--snapshot", "--dump-atlas", "--dump-art", "--icon", "--dmg-background", "--link-preview", "--demo-video"]
 
     public static func handles(_ arguments: [String]) -> Bool {
         flags.contains { arguments.contains($0) }
@@ -40,6 +40,21 @@ public enum SnapshotCommand {
                 return 1
             }
             return 0
+        }
+
+        if let path = value("--demo-video") {
+            let fps = value("--fps").flatMap(Int.init) ?? 60
+            let limit = value("--seconds").flatMap(Double.init)
+            let ok = DemoVideo.render(
+                to: URL(fileURLWithPath: path), framesPerSecond: fps, limit: limit,
+                pixelsPerPoint: value("--scale").flatMap(Double.init) ?? 1.5,
+                bitRate: value("--bitrate").flatMap(Int.init) ?? 8_000_000,
+                poster: value("--poster").map { URL(fileURLWithPath: $0) }
+            ) { done in
+                FileHandle.standardError.write(Data(String(format: "\rrendering %3.0f%%", done * 100).utf8))
+            }
+            FileHandle.standardError.write(Data("\n".utf8))
+            return ok ? 0 : 1
         }
 
         if let path = value("--icon") {
