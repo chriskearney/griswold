@@ -48,6 +48,8 @@ public struct World {
     /// 0...1 strength of an active gust.
     public var gust: Float = 0
     public var aurora: Float = 0
+    /// 0...1, how far frost has crept in from the edges of the glass.
+    public var frost: Float = 0
     public var boost = LightBoost()
     /// Increments at the instant the Griswold Moment lights everything up.
     public var blazeSerial = 0
@@ -60,6 +62,7 @@ public enum SoundCue {
     case sleighBells(duration: Double)
     case chime
     case powerUp
+    case whoosh
 }
 
 /// Schedules surprises and owns the ones that span every screen.
@@ -81,10 +84,12 @@ public final class Director {
     private var gustDirection: Float = 1
     private var gustStrength: Float = 320
     private var auroraStart: Double?
+    private var frostStart: Double?
     private var griswoldStart: Double?
     private var griswoldBlazed = false
 
     private static let auroraDuration: Double = 46
+    private static let frostDuration: Double = 52
     private static let griswoldDuration: Double = 11.5
 
     public init() {}
@@ -127,6 +132,18 @@ public final class Director {
                 world.aurora = 0
             } else {
                 world.aurora = smoothstep(0, 6, Float(t)) * (1 - smoothstep(Float(Director.auroraDuration) - 8, Float(Director.auroraDuration), Float(t)))
+            }
+        }
+
+        if let start = frostStart {
+            let t = Float(now - start)
+            let total = Float(Director.frostDuration)
+            if t >= total {
+                frostStart = nil
+                world.frost = 0
+            } else {
+                // Creeps in over ten seconds, holds, then melts back.
+                world.frost = smoothstep(0, 10, t) * (1 - smoothstep(total - 9, total, t))
             }
         }
 
@@ -182,6 +199,9 @@ public final class Director {
             let weight: Float
             switch kind {
             case .santa: weight = 3
+            case .squirrel: weight = 2.5
+            case .sled: weight = 2.2
+            case .frost: weight = 1.6
             case .shootingStar: weight = 3
             case .gust: weight = config.snowEnabled ? 2 : 0
             case .presents: weight = 2
@@ -221,6 +241,13 @@ public final class Director {
             gustStrength = rng.range(300, 440)
         case .aurora:
             auroraStart = now
+        case .frost:
+            frostStart = now
+        case .squirrel:
+            available.randomElement()?.startSquirrel()
+        case .sled:
+            available.randomElement()?.startSled()
+            onSound?(.whoosh)
         case .griswold:
             griswoldStart = now
             griswoldBlazed = false
@@ -269,6 +296,7 @@ public final class Director {
         if t < 1.5 {
             // The string sputters...
             boost.sputter = 0.15 + 0.5 * (t / 1.5)
+            boost.dim = Noise.hash(Int(t * 30), 5) > 0.7 ? 0.25 : 0
         } else if t < 3.7 {
             // ...dies...
             boost.level = 0
@@ -283,6 +311,10 @@ public final class Director {
             let settle = 1 - smoothstep(6.0, 7.8, since)
             boost.level = 1 + (0.45 + 1.0 * expf(-since * 1.1)) * settle
             boost.bloom = (0.5 + 1.6 * expf(-since * 1.3)) * settle
+            // Everything else on the block goes dim while the lights draw the power,
+            // flickering as the grid struggles, then recovers.
+            let strain = 0.75 + 0.25 * Noise.value(since * 9, seed: 11)
+            boost.dim = (0.35 + 0.65 * expf(-since * 0.9)) * strain * (1 - smoothstep(3.2, 6.2, since))
         } else {
             griswoldStart = nil
         }
@@ -296,6 +328,7 @@ public final class Director {
         world.blazeSerial = serial
         gustStart = nil
         auroraStart = nil
+        frostStart = nil
         griswoldStart = nil
         nextSurprise = nil
         lastFrequency = nil

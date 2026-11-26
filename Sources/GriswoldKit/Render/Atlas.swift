@@ -9,6 +9,7 @@ public enum Art: Int, CaseIterable {
     case sleigh, reindeerStride, reindeerGather
     case presentRed, presentGreen, presentBlue
     case snowman, splat
+    case squirrelStride, squirrelGather, sled
 
     /// Design size in points.
     public var size: CGSize {
@@ -18,6 +19,8 @@ public enum Art: Int, CaseIterable {
         case .presentRed, .presentGreen, .presentBlue: return CGSize(width: 30, height: 32)
         case .snowman: return CGSize(width: 92, height: 128)
         case .splat: return CGSize(width: 150, height: 190)
+        case .squirrelStride, .squirrelGather: return CGSize(width: 62, height: 42)
+        case .sled: return CGSize(width: 78, height: 50)
         }
     }
 }

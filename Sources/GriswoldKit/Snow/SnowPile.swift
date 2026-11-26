@@ -180,6 +180,22 @@ public final class SnowPile {
         return chunks
     }
 
+    /// Scrapes the pile down to almost nothing between two x positions, as a
+    /// sled or a pair of paws would. Returns the snow removed, as an area.
+    @discardableResult
+    public func plow(from lo: Float, to hi: Float, leaving: Float = 0.3) -> Float {
+        let first = max(Int(((min(lo, hi) - originX) / SnowPile.cell).rounded(.down)), 0)
+        let last = min(Int(((max(lo, hi) - originX) / SnowPile.cell).rounded(.up)), heights.count - 1)
+        guard first <= last else { return 0 }
+        var removed: Float = 0
+        for i in first...last where heights[i] > leaving {
+            removed += (heights[i] - leaving) * SnowPile.cell
+            heights[i] = leaving
+        }
+        if removed > 0 { settled = false }
+        return removed
+    }
+
     /// Skims a little snow off the top (wind), returning where it came from.
     public func skim(_ rng: inout FastRNG, probability: Float, amount: Float) -> [SIMD2<Float>] {
         var points: [SIMD2<Float>] = []

@@ -12,6 +12,9 @@ public struct SnowEnvironment {
     public var cursorVelocity: SIMD2<Float> = .zero
     public var flakeScale: Float = 1
     public var surfaces: SurfaceMap?
+    /// When true, snow never passes in front of a window: whatever reaches a
+    /// window top stops there, whether or not there is room in the pile.
+    public var stopsAtSurfaces = false
     public var ground: SnowPile?
 
     public init(size: SIMD2<Float>, wind: Float, time: Float) {
@@ -50,8 +53,9 @@ public final class SurfaceMap {
     /// The surface a particle at `x` crosses while moving from `y0` down to `y1`, if any.
     @inline(__always)
     public func hit(x: Float, from y0: Float, to y1: Float) -> (pile: SnowPile, y: Float)? {
-        let b = Int(x / SurfaceMap.bucketWidth)
-        guard b >= 0, b < buckets.count else { return nil }
+        // Positions just off either side of the screen use the nearest bucket, so
+        // a window that runs off the edge still catches what falls on it there.
+        let b = min(max(Int((x / SurfaceMap.bucketWidth).rounded(.down)), 0), buckets.count - 1)
         for index in buckets[b] {
             let entry = entries[Int(index)]
             guard x >= entry.lo, x < entry.hi, entry.y >= y0 - 1 else { continue }
@@ -263,9 +267,9 @@ public final class SnowSystem {
             f.rotation += f.spin * dt
 
             var respawn = false
-            if f.lands, f.vy > 0, let surfaces = env.surfaces,
+            if f.lands || (env.stopsAtSurfaces && f.layer != SnowSystem.far), f.vy > 0, let surfaces = env.surfaces,
                let hit = surfaces.hit(x: f.x, from: previousY, to: f.y) {
-                if hit.pile.deposit(x: f.x, amount: f.amount) {
+                if hit.pile.deposit(x: f.x, amount: f.amount) || env.stopsAtSurfaces {
                     respawn = true
                 }
             }
@@ -358,8 +362,15 @@ public final class SnowSystem {
     }
 
     /// Draws everything in front of the windows.
-    public func drawFront(into batch: RenderBatch) {
+    public func drawFront(into batch: RenderBatch, hidden: [CGRect] = []) {
+        @inline(__always)
+        func covered(_ x: Float, _ y: Float) -> Bool {
+            let point = CGPoint(x: CGFloat(x), y: CGFloat(y))
+            for rect in hidden where rect.contains(point) { return true }
+            return false
+        }
         for f in flakes where f.layer != SnowSystem.far {
+            if !hidden.isEmpty, f.layer == SnowSystem.bokeh || covered(f.x, f.y) { continue }
             if f.kind == SnowSystem.kindCrystal {
                 batch.add(SpriteInstance(
                     pos: SIMD2(f.x, f.y), size: SIMD2(repeating: f.radius * 2),
@@ -379,6 +390,7 @@ public final class SnowSystem {
             }
         }
         for f in loose {
+            if !hidden.isEmpty, covered(f.x, f.y) { continue }
             if f.kind == SnowSystem.kindClump {
                 batch.add(SpriteInstance(
                     pos: SIMD2(f.x, f.y), size: SIMD2(repeating: f.radius * 2.3),

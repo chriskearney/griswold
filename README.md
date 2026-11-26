@@ -4,15 +4,22 @@ Snow, lights and the occasional sleigh, for your Mac. Free.
 
 **Download:** <https://chonkbase.net/griswold/>
 
+![Griswold: lights around the screen, snow on the windows, and Santa flying past](site/assets/og.jpg)
+
 Griswold is a menu bar app that decorates your desktop:
 
-- **Snow that settles.** Flakes fall in three depth layers, pile up along the top of your windows and on the ground, slide off when you drag a window, and drop when you close one. Distant snow falls behind your windows; near snow falls in front. Wave the pointer through it and it swirls.
-- **Lights around every display.** Five bulb styles, eleven color sets, ten patterns, with speed, brightness, glow, size and spacing controls. Pick which edges, and whether the string hangs under the menu bar.
-- **Surprises.** Santa's sleigh crossing every display, shooting stars, gusts that blow spindrift off the snow, presents that land on your windows, northern lights, a snowman, a snowball on the glass, fireworks at New Year, and the Griswold Moment.
+- **Snow that settles.** It piles up along the top of your windows and falls off when you drag one. Close a window and its snow drops onto whatever is below. You choose whether snow falls in front of your windows, behind them (so it never covers what you are doing), or both.
+- **Lights around every display.** Five bulb styles, eleven color sets, ten patterns, on whichever edges you pick.
+- **Surprises.** Each has its own switch and a Play button:
+  - The Squirrel runs across the tops of your windows and leaps between them.
+  - The Greased Sled makes three passes at great speed and plows the snow off whatever it crosses.
+  - The Griswold Moment: the lights short out, then come back hard enough to brown out the rest of the screen.
+  - Frost creeps in from the edges of the screen; wipe it off with the pointer.
+  - Santa's sleigh, presents that land on your windows, northern lights, shooting stars, a snowman, gusts of wind, a snowball to the glass, and fireworks at New Year.
 - **Easy on the machine.** Drawn with Metal in one pass per display. 60 fps on power, 30 on battery or in Low Power Mode, slower when only steady lights are showing, and nothing at all when the display sleeps, the screen locks, or a full-screen app is in front.
 - **No permissions.** It reads where windows are, never what is in them. No Screen Recording, no Accessibility, no account, no tracking. The only network request is an optional daily check of `version.json` on the website.
 
-Requires macOS 13 or later. Universal (Apple silicon and Intel).
+Requires macOS 13 or later. Universal (Apple silicon and Intel). MIT licensed.
 
 ## Building
 
@@ -36,9 +43,12 @@ swift run -c release Griswold --snapshot out.png --seconds 120 --scale 2
 swift run -c release Griswold --snapshot santa.png --surprise santa --lead 4
 swift run -c release Griswold --snapshot icicles.png --preset wonderland
 scripts/make-icon.sh             # regenerate Resources/AppIcon.icns
+scripts/render-site-assets.sh    # every picture on the website
 ```
 
-Options: `--width`, `--height`, `--scale`, `--seconds`, `--preset`, `--style`, `--palette`, `--pattern`, `--accumulation`, `--intensity`, `--surprise`, `--lead`, `--crop x,y,w,h`, `--top-only`, `--bottom`, `--no-snow`, `--no-lights`, `--no-windows`, `--no-menu-bar`, `--light-windows`, `--transparent`.
+`Griswold --ui-shots <dir>` photographs the real popover and settings window (it opens them on screen for a few seconds).
+
+Options: `--width`, `--height`, `--scale`, `--seconds`, `--preset`, `--style`, `--palette`, `--pattern`, `--accumulation`, `--intensity`, `--layering front|mixed|behind`, `--surprise`, `--lead`, `--stroke x1,y1,x2,y2,...` (a pointer path, for wiping frost), `--crop x,y,w,h`, `--top-only`, `--bottom`, `--no-snow`, `--no-lights`, `--no-windows`, `--no-menu-bar`, `--light-windows`, `--transparent`.
 
 ## Layout
 
@@ -64,3 +74,7 @@ Then publish the site with the new disk image:
 ```sh
 deploy/deploy-site.sh 1.0.0
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE). The website's heading font is Nunito, under the SIL Open Font License (`site/assets/fonts/OFL.txt`).

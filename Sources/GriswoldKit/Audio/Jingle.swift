@@ -22,6 +22,7 @@ final class Jingle {
             case .sleighBells(let duration): samples = Jingle.sleighBells(duration: min(duration, 16))
             case .chime: samples = Jingle.chime()
             case .powerUp: samples = Jingle.powerUp()
+            case .whoosh: samples = Jingle.whoosh()
             }
             DispatchQueue.main.async { self?.start(samples, volume: volume) }
         }
@@ -140,6 +141,38 @@ final class Jingle {
                 value += Float(sin(2 * .pi * frequency * t + Double(k))) * 0.045 * swell
             }
             out[n] = SIMD2(value, value) * 0.5
+        }
+        return limit(out)
+    }
+
+    /// Three fast passes: filtered noise that swells, sweeps across, and is gone.
+    static func whoosh() -> [SIMD2<Float>] {
+        var rng = FastRNG(seed: 0x51ED)
+        let length = Int(5.6 * sampleRate)
+        var out = [SIMD2<Float>](repeating: .zero, count: length)
+        var low: Float = 0
+        var band: Float = 0
+        for n in 0..<length {
+            let t = Double(n) / sampleRate
+            var gain: Float = 0
+            var pan: Float = 0
+            var cutoff: Float = 0.05
+            for pass in 0..<3 {
+                let u = (t - Double(pass) * 1.75) / 1.3
+                guard u > 0, u < 1 else { continue }
+                let swell = Float(pow(sin(.pi * u), 2.4))
+                gain = swell * 0.5
+                // Each pass comes from the opposite side.
+                pan = Float(u * 2 - 1) * (pass % 2 == 0 ? 0.85 : -0.85)
+                cutoff = 0.04 + 0.22 * swell
+            }
+            // A state-variable filter keeps the hiss in a moving band.
+            let noise = rng.signed()
+            low += cutoff * band
+            let high = noise - low - 0.6 * band
+            band += cutoff * high
+            let value = band * gain
+            out[n] = SIMD2(value * sqrtf(0.5 * (1 - pan)), value * sqrtf(0.5 * (1 + pan)))
         }
         return limit(out)
     }

@@ -32,6 +32,7 @@ final class OverlayController: NSObject, MTKViewDelegate {
     private weak var manager: OverlayManager?
     private let batch = RenderBatch()
     private let buffers = FrameBuffers()
+    private let frostMask = FrostMaskTexture()
     private var lastFrame: Double?
     private(set) var isRunning = false
 
@@ -143,7 +144,8 @@ final class OverlayController: NSObject, MTKViewDelegate {
         let scale = bounds.width > 0 ? Float(view.drawableSize.width / bounds.width) : 2
         renderer.encode(batch, buffers: buffers, encoder: encoder,
                         viewport: SIMD2(Float(bounds.width), Float(bounds.height)),
-                        scale: scale, time: world.time)
+                        scale: scale, time: world.time,
+                        mask: frostMask.texture(for: scene, device: renderer.device))
         encoder.endEncoding()
         commands.present(drawable)
         commands.commit()

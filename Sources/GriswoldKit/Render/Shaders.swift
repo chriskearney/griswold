@@ -113,6 +113,24 @@ enum ShaderSource {
         return d;
     }
 
+    static float hash21(float2 p) {
+        p = fract(p * float2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+    }
+
+    static float value_noise(float2 p) {
+        float2 i = floor(p);
+        float2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash21(i), hash21(i + float2(1, 0)), f.x),
+                   mix(hash21(i + float2(0, 1)), hash21(i + float2(1, 1)), f.x), f.y);
+    }
+
+    static float fbm(float2 p) {
+        return value_noise(p) * 0.55 + value_noise(p * 2.03 + 17.0) * 0.30 + value_noise(p * 4.1 + 43.0) * 0.15;
+    }
+
     // Light bulb: returns premultiplied colour. `lit` is 0 (dark glass) and up.
     static float4 bulb(float2 local, float2 half_px, float3 tint, float lit, float style) {
         float aspect = half_px.y / half_px.x;
@@ -174,6 +192,7 @@ enum ShaderSource {
     fragment float4 sprite_fragment(SpriteOut in [[stage_in]],
                                     constant Uniforms &u [[buffer(1)]],
                                     texture2d<float> atlas [[texture(0)]],
+                                    texture2d<float> wiped [[texture(1)]],
                                     sampler samp [[sampler(0)]]) {
         int shape = int(in.shape + 0.5);
         float2 l = in.local;
@@ -249,6 +268,38 @@ enum ShaderSource {
             float head = exp(-dot(hd, hd) * 2.4);
             float i = (body * 0.8 + head * 1.4) * op * smoothstep(1.0, 0.9, abs(l.x));
             return float4(rgb * i, min(i, 1.0) * in.p0);
+        }
+        case 9: {   // frost creeping in from the edges of the glass; p0 = growth
+            float2 pt = in.position.xy / u.scale;
+            float2 vp = u.viewport;
+            float edge = min(min(pt.x, vp.x - pt.x), min(pt.y, vp.y - pt.y));
+            float2 q = pt * 0.012;
+            // Broad lobes decide how far in the frost reaches; fine noise makes
+            // its leading edge ragged, the way crystals grow.
+            float lobes = fbm(q * 0.8 + 3.1);
+            float fine = fbm(q * 7.0 + 11.0);
+            float reach = min(vp.x, vp.y) * 0.105 * in.p0 * (0.55 + 1.0 * lobes);
+            float t = 1.0 - edge / max(reach, 1.0) + (fine - 0.5) * 0.45;
+            float cover = smoothstep(0.0, 0.55, t);
+            if (cover < 0.003) { return float4(0.0); }
+            // Hatching: short parallel needles in three directions sixty degrees apart.
+            float needles = 0.0;
+            for (int k = 0; k < 3; k++) {
+                float a = 1.0471975512 * float(k) + 0.35;
+                float2 along = float2(cos(a), sin(a));
+                float2 across = float2(-along.y, along.x);
+                float v = dot(pt, across) * 0.26 + value_noise(float2(dot(pt, along) * 0.01, float(k) * 7.0)) * 3.0;
+                float line = pow(1.0 - abs(sin(v)), 8.0);
+                float row = floor(v / 3.14159265);
+                float piece = value_noise(float2(dot(pt, along) * 0.035 + float(k) * 3.0, row * 1.7));
+                needles = max(needles, line * smoothstep(0.45, 0.8, piece));
+            }
+            float grain = hash21(floor(pt * 1.2));
+            float haze = (0.40 + 0.26 * fine) * (0.5 + 0.5 * cover);
+            float a = cover * clamp(haze + needles * 0.34 * cover + (grain - 0.5) * 0.10, 0.0, 0.9);
+            a *= 1.0 - wiped.sample(samp, pt / vp).r;
+            float3 c = mix(float3(0.84, 0.92, 1.0), float3(1.0), needles * 0.8);
+            return float4(c * a, a) * op;
         }
         default: {
             float a = op * smoothstep(1.0, 0.9, d);

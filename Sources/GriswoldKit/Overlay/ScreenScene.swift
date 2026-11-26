@@ -79,6 +79,44 @@ public final class ScreenScene {
     private var snowballs: [Snowball] = []
     private var shells: [Shell] = []
 
+    private struct Squirrel {
+        /// Where its feet are.
+        var position: SIMD2<Float>
+        var velocity: SIMD2<Float>
+        var direction: Float
+        var grounded: Bool
+        var age: Float
+        var pause: Float
+        var pausesLeft: Int
+        var scale: Float
+    }
+    private struct Sled {
+        /// The bottom of the saucer.
+        var position: SIMD2<Float>
+        var velocity: SIMD2<Float>
+        var direction: Float
+        var grounded: Bool
+        var pass: Int
+        var wait: Float
+        var rotation: Float
+        var scale: Float
+    }
+    private var squirrel: Squirrel?
+    private var sled: Sled?
+
+    /// Where frost has been wiped off this screen, for the renderer.
+    public struct FrostMask {
+        public var bytes: [UInt8]
+        public var width: Int
+        public var height: Int
+        public var version: Int
+    }
+    public private(set) var frostMask: FrostMask?
+    private var frostWipe: [Float] = []
+    private var frostVersion = 0
+    private var lastWipePoint: SIMD2<Float>?
+    private static let frostCell: Float = 12
+
     public init(frame: CGRect, topInset: Float, seed: UInt64 = 1) {
         self.frame = frame
         self.topInset = topInset
@@ -124,8 +162,10 @@ public final class ScreenScene {
             hidden.append(local.insetBy(dx: 1, dy: 1))
         }
 
-        let accumulate = config.snowEnabled && config.accumulation != .off && !isSuspended
-        ledges = accumulate ? LedgeFinder.ledges(windows: windows, screen: frame, topInset: topInset) : []
+        // Window tops are tracked even with settling off: the squirrel and the
+        // sled run along them, and "behind windows" snow stops at them.
+        let tracking = config.enabled && !isSuspended
+        ledges = tracking ? LedgeFinder.ledges(windows: windows, screen: frame, topInset: topInset) : []
         var firstLedge: [UInt32: Ledge] = [:]
         for ledge in ledges where firstLedge[ledge.windowID] == nil {
             firstLedge[ledge.windowID] = ledge
@@ -174,7 +214,7 @@ public final class ScreenScene {
             } else {
                 piles[id] = SnowPile(
                     id: id, originX: ledge.windowSpan.lo, width: ledge.windowSpan.length, y: ledge.y,
-                    maxHeight: config.accumulation.maxHeight, tapered: true
+                    maxHeight: config.snowEnabled ? config.accumulation.maxHeight : 0, tapered: true
                 )
             }
             pileSpans[id] = ledge.windowSpan
@@ -244,13 +284,21 @@ public final class ScreenScene {
 
         var env = SnowEnvironment(size: size, wind: world.wind, time: time)
         env.flakeScale = Float(config.flakeSize)
-        env.surfaces = pileLimit > 0 ? surfaces : nil
+        let behind = config.snowLayering == .behind
+        env.surfaces = (pileLimit > 0 || behind) ? surfaces : nil
+        env.stopsAtSurfaces = behind
         env.ground = groundLimit > 0 ? ground : nil
-        if config.cursorPlay, let cursor, frame.insetBy(dx: -100, dy: -100).contains(cursor) {
-            env.cursor = SIMD2(Float(cursor.x - frame.minX), Float(cursor.y - frame.minY))
-            env.cursorVelocity = cursorVelocity
+        var pointer: SIMD2<Float>?
+        if let cursor, frame.insetBy(dx: -100, dy: -100).contains(cursor) {
+            let local = SIMD2(Float(cursor.x - frame.minX), Float(cursor.y - frame.minY))
+            pointer = local
+            if config.cursorPlay {
+                env.cursor = local
+                env.cursorVelocity = cursorVelocity
+            }
         }
         snow.update(dt: dt, env: env)
+        updateFrost(dt: dt, world: world, pointer: pointer)
 
         // A strong gust blows spindrift off the tops of the piles.
         if world.gust > 0.3, pileLimit > 0 {
@@ -299,6 +347,7 @@ public final class ScreenScene {
         if isSuspended { return false }
         return !snow.isIdle || lights != nil || !sparks.isEmpty || !stars.isEmpty || !presents.isEmpty
             || snowman != nil || !snowballs.isEmpty || !shells.isEmpty || world.aurora > 0.001
+            || squirrel != nil || sled != nil || world.frost > 0.001 || world.boost.dim > 0.001
             || world.santa != nil || !ground.isEmpty || piles.values.contains { !$0.isEmpty }
     }
 
@@ -306,6 +355,7 @@ public final class ScreenScene {
     public func isCalm(world: World, config: Config) -> Bool {
         snow.isIdle && sparks.isEmpty && stars.isEmpty && presents.isEmpty && snowman == nil
             && snowballs.isEmpty && shells.isEmpty && world.aurora <= 0.001 && world.santa == nil
+            && squirrel == nil && sled == nil && world.frost <= 0.001 && world.boost.dim <= 0.001
             && world.boost.level == 1 && world.boost.sputter == 0
             && (lights == nil || config.pattern == .steady || config.pattern == .breathe)
     }
@@ -381,6 +431,296 @@ public final class ScreenScene {
         }
     }
 
+    public func startSquirrel() {
+        guard squirrel == nil else { return }
+        let size = self.size
+        let direction: Float = rng.chance(0.5) ? 1 : -1
+        // Drops in from the top, as if it had been hiding in the lights.
+        let x = direction > 0 ? rng.range(30, size.x * 0.22) : rng.range(size.x * 0.78, size.x - 30)
+        squirrel = Squirrel(
+            position: SIMD2(x, topInset + 6), velocity: SIMD2(direction * 160, 40), direction: direction,
+            grounded: false, age: 0, pause: 0, pausesLeft: 2, scale: size.y > 1300 ? 1.45 : 1.15
+        )
+    }
+
+    public func startSled() {
+        guard sled == nil else { return }
+        let direction: Float = rng.chance(0.5) ? 1 : -1
+        var next = Sled(position: .zero, velocity: .zero, direction: direction, grounded: false,
+                        pass: 0, wait: 0, rotation: 0, scale: size.y > 1300 ? 1.5 : 1.2)
+        beginPass(&next)
+        sled = next
+    }
+
+    /// Three runs: high, middle, then along the ground, each from the opposite side.
+    private func beginPass(_ sled: inout Sled) {
+        let size = self.size
+        let heights: [Float] = [0.16, 0.44, 1.0]
+        let fraction = heights[min(sled.pass, heights.count - 1)]
+        let startX: Float = sled.direction > 0 ? -140 : size.x + 140
+        let ground = groundY(at: sled.direction > 0 ? 0 : size.x)
+        sled.grounded = fraction >= 1
+        sled.position = SIMD2(startX, fraction >= 1 ? ground : max(topInset + 60, size.y * fraction))
+        sled.velocity = SIMD2(sled.direction * rng.range(1450, 1800) * min(max(size.x / 1500, 0.8), 1.5), fraction >= 1 ? 0 : -80)
+        sled.rotation = 0
+    }
+
+    /// The surface within `tolerance` of `y` at `x`: a window top, or the ground.
+    private func support(atX x: Float, near y: Float, tolerance: Float) -> (y: Float, pile: SnowPile)? {
+        if let hit = surfaces.hit(x: x, from: y - tolerance, to: y + tolerance) {
+            return (hit.y, hit.pile)
+        }
+        let floor = groundY(at: x)
+        return abs(floor - y) <= tolerance ? (floor, ground) : nil
+    }
+
+    /// Throws up whatever snow lies between two points on a pile.
+    private func kickSnow(_ pile: SnowPile, from: Float, to: Float, y: Float, velocity: SIMD2<Float>, leaving: Float) {
+        let removed = pile.plow(from: from, to: to, leaving: leaving)
+        guard removed > 0.5 else { return }
+        let pieces = min(max(Int(removed / 14), 1), 6)
+        for _ in 0..<pieces {
+            snow.addClump(x: (from + to) * 0.5 + rng.signed() * 6, y: y - 3,
+                          velocity: velocity + SIMD2(rng.signed() * 60, -rng.range(20, 160)),
+                          amount: removed / Float(pieces))
+        }
+        snow.addPowder(x: (from + to) * 0.5, y: y - 2, velocity: velocity * 0.5 + SIMD2(0, -40), count: 2, life: 0.6)
+    }
+
+    private func updateSquirrel(dt: Float) {
+        guard var s = squirrel else { return }
+        let size = self.size
+        s.age += dt
+        let speed: Float = 560 * s.scale
+        let gravity: Float = 1500
+
+        if s.pause > 0 {
+            // Sits up and looks around, riding the snow if it is still settling.
+            s.pause -= dt
+            if let under = support(atX: s.position.x, near: s.position.y, tolerance: 8) {
+                s.position.y = under.y
+            } else {
+                s.pause = 0
+                s.grounded = false
+            }
+        } else if s.grounded {
+            let nextX = s.position.x + s.direction * speed * dt
+            if let under = support(atX: nextX, near: s.position.y, tolerance: 9) {
+                kickSnow(under.pile, from: s.position.x - 4, to: nextX + 4, y: under.y,
+                         velocity: SIMD2(-s.direction * 110, -40), leaving: max(under.pile.height(atX: nextX) * 0.55, 0.4))
+                s.position = SIMD2(nextX, under.y)
+                // Leap for the next window top if one is in range.
+                if let launch = squirrelLeap(from: s.position, direction: s.direction, speed: speed * 0.92, gravity: gravity) {
+                    s.velocity = launch
+                    s.grounded = false
+                }
+            } else {
+                // Ran out of window: jump.
+                s.velocity = SIMD2(s.direction * speed * 0.9, -rng.range(300, 460))
+                s.grounded = false
+            }
+        } else {
+            s.velocity.y += gravity * dt
+            let previous = s.position.y
+            s.position += s.velocity * dt
+            var landing: (y: Float, pile: SnowPile)?
+            if s.velocity.y > 0 {
+                if let hit = surfaces.hit(x: s.position.x, from: previous, to: s.position.y) {
+                    landing = (hit.y, hit.pile)
+                } else if s.position.y >= groundY(at: s.position.x) {
+                    landing = (groundY(at: s.position.x), ground)
+                }
+            }
+            if let landing {
+                s.position.y = landing.y
+                s.grounded = true
+                kickSnow(landing.pile, from: s.position.x - 16, to: s.position.x + 16, y: landing.y,
+                         velocity: SIMD2(s.velocity.x * 0.2, -90), leaving: 0.5)
+                snow.addPowder(x: s.position.x, y: landing.y, velocity: SIMD2(0, -50), count: 6, life: 0.6)
+                if s.pausesLeft > 0, landing.pile !== ground, rng.chance(0.45) {
+                    s.pausesLeft -= 1
+                    s.pause = rng.range(0.45, 0.9)
+                }
+            }
+        }
+
+        let gone = s.position.x < -90 || s.position.x > size.x + 90 || s.position.y > size.y + 120 || s.age > 18
+        squirrel = gone ? nil : s
+    }
+
+    /// The launch velocity that carries a squirrel from `origin` to the near
+    /// corner of the best window top ahead, or nil if none is within its jump.
+    private func squirrelLeap(from origin: SIMD2<Float>, direction: Float, speed: Float, gravity: Float) -> SIMD2<Float>? {
+        var best: (velocity: SIMD2<Float>, rise: Float)?
+        for entry in surfaces.entries {
+            let edge = direction > 0 ? entry.lo : entry.hi
+            let dx = (edge - origin.x) * direction
+            guard dx > 50, dx < 470, entry.hi - entry.lo > 70 else { continue }
+            let target = SIMD2<Float>(edge + direction * 26, entry.y - entry.pile.height(atX: edge + direction * 26))
+            let rise = origin.y - target.y
+            // Only jump up or across; falling off an edge takes care of going down.
+            guard rise > -24, rise < 330 else { continue }
+            let time = (dx + 26) / speed
+            let vy = (target.y - origin.y - 0.5 * gravity * time * time) / time
+            guard vy > -960, vy < -140 else { continue }
+            if best == nil || rise > best!.rise {
+                best = (SIMD2(direction * speed, vy), rise)
+            }
+        }
+        return best?.velocity
+    }
+
+    private func updateSled(dt: Float) {
+        guard var s = sled else { return }
+        let size = self.size
+        if s.wait > 0 {
+            s.wait -= dt
+            if s.wait <= 0 { beginPass(&s) }
+            sled = s
+            return
+        }
+
+        if s.grounded {
+            let nextX = s.position.x + s.velocity.x * dt
+            if let under = support(atX: nextX, near: s.position.y, tolerance: 12) {
+                // Greased: nothing slows it down. It ploughs a groove and throws the snow ahead.
+                kickSnow(under.pile, from: s.position.x - s.direction * 12, to: nextX + s.direction * 14, y: under.y,
+                         velocity: SIMD2(s.velocity.x * 0.22, -rng.range(140, 420)), leaving: 0.25)
+                s.position = SIMD2(nextX, under.y)
+                s.rotation += (0 - s.rotation) * min(dt * 14, 1)
+                // Sparks off the bottom of the saucer.
+                var count = dt * 260
+                while count > 0 {
+                    if count >= 1 || rng.chance(count) {
+                        sparks.emit(at: s.position + SIMD2(-s.direction * rng.range(0, 24), -2),
+                                    velocity: SIMD2(-s.direction * rng.range(40, 320), -rng.range(20, 260)),
+                                    colour: rng.chance(0.5) ? SIMD3(1.0, 0.62, 0.16) : SIMD3(1.0, 0.86, 0.42),
+                                    size: rng.range(3, 7), life: rng.range(0.2, 0.6), gravity: 520, drag: 0.6)
+                    }
+                    count -= 1
+                }
+            } else {
+                // Off the end of a window: the edge is a ramp.
+                s.grounded = false
+                s.velocity.y = -rng.range(160, 380)
+            }
+        } else {
+            s.velocity.y += 1500 * dt
+            let previous = s.position.y
+            s.position += s.velocity * dt
+            s.rotation += (atan2f(s.velocity.y, abs(s.velocity.x)) * 0.8 - s.rotation) * min(dt * 8, 1)
+            var landing: (y: Float, pile: SnowPile)?
+            if s.velocity.y > 0 {
+                if let hit = surfaces.hit(x: s.position.x, from: previous, to: s.position.y) {
+                    landing = (hit.y, hit.pile)
+                } else if s.position.y >= groundY(at: s.position.x) {
+                    landing = (groundY(at: s.position.x), ground)
+                }
+            }
+            if let landing {
+                s.position.y = landing.y
+                s.velocity.y = 0
+                s.grounded = true
+                sparks.burst(at: s.position, count: 26, speed: 80...460,
+                             colours: [SIMD3(1.0, 0.62, 0.16), SIMD3(1.0, 0.86, 0.42), SIMD3(1, 1, 1)],
+                             size: 4...9, life: 0.3...0.8, gravity: 520, drag: 0.8)
+                snow.addPowder(x: s.position.x, y: landing.y, velocity: SIMD2(s.velocity.x * 0.1, -120), count: 14, life: 0.8)
+                kickSnow(landing.pile, from: s.position.x - 30, to: s.position.x + 30, y: landing.y,
+                         velocity: SIMD2(s.velocity.x * 0.15, -260), leaving: 0.25)
+            }
+        }
+
+        // The trail: this is a man who has made a mistake at great speed.
+        var flames = dt * 150
+        let tail = s.position + SIMD2(-s.direction * 34 * s.scale, -12 * s.scale)
+        while flames > 0 {
+            if flames >= 1 || rng.chance(flames) {
+                let hot = rng.unit()
+                sparks.emit(at: tail + SIMD2(rng.signed() * 6, rng.signed() * 8),
+                            velocity: SIMD2(-s.direction * rng.range(40, 240), rng.range(-90, 40)),
+                            colour: SIMD3(1.0, mix(0.35, 0.9, hot), mix(0.08, 0.5, hot * hot)),
+                            size: rng.range(5, 11), life: rng.range(0.22, 0.6), gravity: -60, drag: 1.6)
+            }
+            flames -= 1
+        }
+
+        let passed = s.direction > 0 ? s.position.x > size.x + 180 : s.position.x < -180
+        if passed || s.position.y > size.y + 200 {
+            s.pass += 1
+            if s.pass >= 3 {
+                sled = nil
+                return
+            }
+            s.direction = -s.direction
+            s.wait = 0.5
+        }
+        sled = s
+    }
+
+    // MARK: Frost
+
+    /// Frost regrows on its own; the pointer wipes it clear where it passes.
+    private func updateFrost(dt: Float, world: World, pointer: SIMD2<Float>?) {
+        guard world.frost > 0.001, !isSuspended else {
+            if frostMask != nil {
+                frostMask = nil
+                frostWipe = []
+                lastWipePoint = nil
+            }
+            return
+        }
+        let size = self.size
+        let cell = ScreenScene.frostCell
+        let width = max(Int((size.x / cell).rounded(.up)), 1)
+        let height = max(Int((size.y / cell).rounded(.up)), 1)
+        if frostWipe.count != width * height {
+            frostWipe = [Float](repeating: 0, count: width * height)
+            frostMask = nil
+        }
+
+        var changed = false
+        let regrow = dt * 0.085
+        for i in frostWipe.indices where frostWipe[i] > 0 {
+            frostWipe[i] = max(frostWipe[i] - regrow, 0)
+            changed = true
+        }
+
+        if let pointer, pointer.x >= -40, pointer.y >= -40, pointer.x <= size.x + 40, pointer.y <= size.y + 40 {
+            let from = lastWipePoint ?? pointer
+            let distance = simd_distance(from, pointer)
+            if distance < 600 {
+                let radius: Float = 48
+                let steps = max(Int(distance / 12), 1)
+                for step in 0...steps {
+                    let p = from + (pointer - from) * (Float(step) / Float(steps))
+                    let x0 = max(Int((p.x - radius) / cell), 0)
+                    let x1 = min(Int((p.x + radius) / cell), width - 1)
+                    let y0 = max(Int((p.y - radius) / cell), 0)
+                    let y1 = min(Int((p.y + radius) / cell), height - 1)
+                    guard x0 <= x1, y0 <= y1 else { continue }
+                    for y in y0...y1 {
+                        for x in x0...x1 {
+                            let dx = (Float(x) + 0.5) * cell - p.x
+                            let dy = (Float(y) + 0.5) * cell - p.y
+                            let clear = 1 - smoothstep(radius * 0.55, radius, sqrtf(dx * dx + dy * dy))
+                            if clear > frostWipe[y * width + x] { frostWipe[y * width + x] = clear }
+                        }
+                    }
+                }
+                changed = true
+            }
+            lastWipePoint = pointer
+        } else {
+            lastWipePoint = nil
+        }
+
+        if changed || frostMask == nil {
+            frostVersion += 1
+            frostMask = FrostMask(bytes: frostWipe.map { UInt8(min(max($0, 0), 1) * 255) },
+                                  width: width, height: height, version: frostVersion)
+        }
+    }
+
     private func blazeSparks(config: Config) {
         let size = self.size
         let colours = Palettes.colors(for: config.palette, customHex: config.customColorHex)
@@ -414,6 +754,8 @@ public final class ScreenScene {
 
     private func updateSurprises(dt: Float, world: World) {
         let size = self.size
+        updateSquirrel(dt: dt)
+        updateSled(dt: dt)
 
         // Santa leaves a trail of dust on whichever screens he is over.
         if let santa = world.santa {
@@ -593,7 +935,7 @@ public final class ScreenScene {
             ))
         }
 
-        snow.drawBack(into: batch, hidden: config.depthBehindWindows ? hidden : [])
+        snow.drawBack(into: batch, hidden: config.snowLayering == .front ? [] : hidden)
 
         for ledge in ledges {
             piles[ledge.windowID]?.draw(into: batch, from: ledge.span.lo, to: ledge.span.hi)
@@ -623,10 +965,40 @@ public final class ScreenScene {
             ))
         }
 
-        snow.drawFront(into: batch)
+        snow.drawFront(into: batch, hidden: config.snowLayering == .behind ? hidden : [])
 
         if let santa = world.santa {
             drawSanta(santa, into: batch, atlas: atlas)
+        }
+        if let s = sled, s.wait <= 0 {
+            let art = Art.sled
+            let extent = atlas.size(art) * s.scale
+            let centre = s.position + SIMD2(0, -extent.y * 0.5 + 4 * s.scale)
+            // A streak of fire behind, head at the sled.
+            let length = 300 * s.scale
+            batch.add(SpriteInstance(
+                pos: centre - SIMD2(s.direction * length * 0.42, -2 * s.scale), size: SIMD2(length, 40 * s.scale),
+                color: SIMD4(1.0, 0.52, 0.12, 1.0), rot: s.direction > 0 ? 0 : .pi, shape: Shape.streak, p0: 0.35
+            ))
+            let uv = atlas.uv(art)
+            batch.add(SpriteInstance(
+                pos: centre, size: extent, color: SIMD4(1, 1, 1, 1),
+                uv: s.direction > 0 ? uv : SIMD4(uv.z, uv.y, uv.x, uv.w),
+                rot: s.rotation * s.direction, shape: Shape.atlas
+            ))
+        }
+        if let s = squirrel {
+            let running = s.grounded && s.pause <= 0
+            let stride = running ? Int(s.age * 11) % 2 == 0 : !s.grounded
+            let art: Art = stride ? .squirrelStride : .squirrelGather
+            let extent = atlas.size(art) * s.scale
+            let uv = atlas.uv(art)
+            let tilt: Float = s.grounded ? 0 : atan2f(s.velocity.y, abs(s.velocity.x)) * 0.55
+            batch.add(SpriteInstance(
+                pos: s.position + SIMD2(0, -extent.y * 0.5 + 4.5 * s.scale), size: extent, color: SIMD4(1, 1, 1, 1),
+                uv: s.direction > 0 ? uv : SIMD4(uv.z, uv.y, uv.x, uv.w),
+                rot: tilt * s.direction, shape: Shape.atlas
+            ))
         }
         sparks.draw(into: batch, time: time)
 
@@ -648,6 +1020,28 @@ public final class ScreenScene {
                     color: SIMD4(1, 1, 1, alpha), uv: atlas.uv(.splat), rot: b.rotation, shape: Shape.atlas
                 ))
             }
+        }
+
+        if world.frost > 0.001 {
+            // Four bands around the edge rather than one full-screen quad, so the
+            // shader only runs where frost can actually be.
+            let band = min(size.x, size.y) * 0.105 * 2.0
+            let tint = SIMD4<Float>(1, 1, 1, 1)
+            for (centre, extent) in [
+                (SIMD2(size.x * 0.5, band * 0.5), SIMD2(size.x, band)),
+                (SIMD2(size.x * 0.5, size.y - band * 0.5), SIMD2(size.x, band)),
+                (SIMD2(band * 0.5, size.y * 0.5), SIMD2(band, size.y - band * 2)),
+                (SIMD2(size.x - band * 0.5, size.y * 0.5), SIMD2(band, size.y - band * 2)),
+            ] {
+                batch.add(SpriteInstance(pos: centre, size: extent, color: tint, shape: Shape.frost, p0: world.frost))
+            }
+        }
+
+        if world.boost.dim > 0.001 {
+            // The rest of the block goes dim while the lights pull the power.
+            let shade = SIMD4<Float>(0, 0, 0.02, world.boost.dim * 0.5)
+            batch.quad(MeshVertex(SIMD2(0, 0), shade), MeshVertex(SIMD2(size.x, 0), shade),
+                       MeshVertex(SIMD2(0, size.y), shade), MeshVertex(SIMD2(size.x, size.y), shade))
         }
 
         if let lights, lightsOpacity > 0.01 {

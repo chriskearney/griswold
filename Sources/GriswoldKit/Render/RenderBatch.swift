@@ -12,6 +12,7 @@ public enum Shape {
     public static let clump: Float = 6
     public static let aurora: Float = 7
     public static let streak: Float = 8
+    public static let frost: Float = 9
 }
 
 /// One instanced quad. Layout must match `Sprite` in the shader (64 bytes).

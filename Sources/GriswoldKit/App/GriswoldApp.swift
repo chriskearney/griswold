@@ -17,7 +17,9 @@ public enum GriswoldApp {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let settings = Settings.shared
+    private let settings: Settings
+    /// Set by `--ui-shots <directory>`: photograph the real interface and quit.
+    private let shotDirectory: String?
     private var manager: OverlayManager!
     private var model: AppModel!
     private var statusItem: NSStatusItem!
@@ -26,6 +28,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables: Set<AnyCancellable> = []
 
     private static let welcomedKey = "welcomed.v1"
+
+    override init() {
+        let arguments = CommandLine.arguments
+        if let index = arguments.firstIndex(of: "--ui-shots"), index + 1 < arguments.count {
+            shotDirectory = arguments[index + 1]
+            // A private, empty settings store, so the pictures show the defaults
+            // and the real preferences are left alone.
+            let suite = "net.chonkbase.griswold.uishots"
+            UserDefaults().removePersistentDomain(forName: suite)
+            settings = Settings(defaults: UserDefaults(suiteName: suite) ?? .standard)
+        } else {
+            shotDirectory = nil
+            settings = Settings.shared
+        }
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let identifier = Bundle.main.bundleIdentifier,
@@ -42,6 +60,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         buildMainMenu()
         buildStatusItem()
+
+        if let shotDirectory {
+            takeShots(into: shotDirectory)
+            return
+        }
 
         guard manager.isAvailable else {
             let alert = NSAlert()
@@ -195,11 +218,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = main
     }
 
+    // MARK: Pictures of the interface
+
+    /// Opens each settings tab and the popover for a moment, photographs the
+    /// actual windows, and quits. The overlay is never started.
+    private func takeShots(into directory: String) {
+        let output = URL(fileURLWithPath: directory, isDirectory: true)
+        try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let tabs = ["snow", "lights", "surprises", "general"]
+        // The website is dark, so photograph the dark appearance whatever the system is set to.
+        NSApp.appearance = NSAppearance(named: .darkAqua)
+        popover.appearance = NSAppearance(named: .darkAqua)
+
+        func capture(_ window: NSWindow?, _ name: String) {
+            guard let window, window.windowNumber > 0 else { return }
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+            process.arguments = ["-x", "-l", String(window.windowNumber), output.appendingPathComponent(name).path]
+            try? process.run()
+            process.waitUntilExit()
+        }
+
+        func settingsTab(_ index: Int) {
+            guard index < tabs.count else {
+                settingsWindow?.orderOut(nil)
+                popoverShot()
+                return
+            }
+            openSettings(tab: index)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                capture(self?.settingsWindow, "ui-settings-\(tabs[index]).png")
+                settingsTab(index + 1)
+            }
+        }
+
+        func popoverShot() {
+            // The popover is translucent. Put a plain night-sky panel behind it so
+            // the picture does not pick up whatever happens to be on screen.
+            var backdrop: NSWindow?
+            if let anchor = statusItem.button?.window?.frame {
+                let frame = CGRect(x: anchor.midX - 380, y: anchor.minY - 760, width: 760, height: 760)
+                let panel = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+                panel.backgroundColor = NSColor(srgbRed: 0.06, green: 0.09, blue: 0.22, alpha: 1)
+                panel.level = .floating
+                panel.ignoresMouseEvents = true
+                panel.isReleasedWhenClosed = false
+                panel.orderFrontRegardless()
+                backdrop = panel
+            }
+            showPopover()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                capture(self?.popover.contentViewController?.view.window, "ui-popover.png")
+                backdrop?.orderOut(nil)
+                NSApp.terminate(nil)
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { settingsTab(0) }
+    }
+
     // MARK: Settings window
 
-    private func openSettings() {
+    private func openSettings(tab: Int? = nil) {
+        if let tab, let window = settingsWindow {
+            window.contentViewController = NSHostingController(
+                rootView: SettingsView(settings: settings, initialTab: tab).environmentObject(model)
+            )
+        }
         if settingsWindow == nil {
-            let controller = NSHostingController(rootView: SettingsView(settings: settings).environmentObject(model))
+            let controller = NSHostingController(
+                rootView: SettingsView(settings: settings, initialTab: tab ?? 0).environmentObject(model)
+            )
             let window = NSWindow(contentViewController: controller)
             window.title = "Griswold"
             window.styleMask = [.titled, .closable, .miniaturizable]

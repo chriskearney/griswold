@@ -350,3 +350,123 @@ final class AppLogicTests: XCTestCase {
         XCTAssertEqual(director.world.boost.level, 1)
     }
 }
+
+final class GagTests: XCTestCase {
+    private let frame = CGRect(x: 0, y: 0, width: 1440, height: 900)
+
+    private func quietConfig() -> Config {
+        var config = Config()
+        config.snowEnabled = false
+        config.lightsEnabled = false
+        config.surpriseFrequency = .off
+        return config
+    }
+
+    private func scene(windows: [CGRect], config: Config) -> ScreenScene {
+        let scene = ScreenScene(frame: frame, topInset: 25, seed: 3)
+        let infos = windows.enumerated().map { WindowInfo(id: UInt32($0.offset + 1), frame: $0.element) }
+        scene.setWindows(infos, now: 0, spaceChangedAt: -100, fullscreenHint: false, config: config)
+        return scene
+    }
+
+    private func run(_ scene: ScreenScene, world: World = World(), config: Config, seconds: Double,
+                     pointer: CGPoint? = nil) {
+        var now = 0.0
+        while now < seconds {
+            now += 1.0 / 60
+            scene.step(dt: 1.0 / 60, now: now, config: config, world: world, cursor: pointer, cursorVelocity: .zero)
+        }
+    }
+
+    func testPlowClearsOnlyTheStretchItCrosses() {
+        let pile = SnowPile(id: 1, originX: 0, width: 600, y: 300, maxHeight: 20, tapered: false)
+        for x in stride(from: Float(10), to: 590, by: 6) { pile.deposit(x: x, amount: 60, force: true) }
+        let before = pile.volume
+        let removed = pile.plow(from: 200, to: 300, leaving: 0.3)
+        XCTAssertGreaterThan(removed, 0)
+        XCTAssertEqual(pile.volume, before - removed, accuracy: 0.01)
+        XCTAssertLessThanOrEqual(pile.height(atX: 250), 0.31)
+        XCTAssertGreaterThan(pile.height(atX: 450), 5)
+    }
+
+    func testSnowBehindWindowsNeverPassesASurface() {
+        let snow = SnowSystem(seed: 5)
+        // A full pile: nothing can be deposited, so only the stop rule keeps flakes above it.
+        let pile = SnowPile(id: 1, originX: -200, width: 1200, y: 300, maxHeight: 0, tapered: false)
+        let map = SurfaceMap(width: 800)
+        map.add(SurfaceMap.Entry(lo: -200, hi: 1000, y: 300, pile: pile))
+        var env = SnowEnvironment(size: SIMD2(800, 600), wind: 0, time: 0)
+        env.surfaces = map
+        env.stopsAtSurfaces = true
+        snow.target = 400
+        for step in 0..<(60 * 60) {
+            env.time = Float(step) / 60
+            snow.update(dt: 1.0 / 60, env: env)
+        }
+        let below = snow.flakes.filter { $0.layer != SnowSystem.far && $0.y > 302 }
+        XCTAssertTrue(below.isEmpty, "\(below.count) flakes got past the window top")
+    }
+
+    func testSquirrelRunsAndLeaves() {
+        let config = quietConfig()
+        let scene = scene(windows: [CGRect(x: 200, y: 300, width: 500, height: 300),
+                                    CGRect(x: 800, y: 220, width: 420, height: 300)], config: config)
+        scene.startSquirrel()
+        XCTAssertTrue(scene.hasContent(world: World()))
+        run(scene, config: config, seconds: 25)
+        XCTAssertFalse(scene.hasContent(world: World()))
+    }
+
+    func testSledMakesItsPassesAndLeaves() {
+        let config = quietConfig()
+        let scene = scene(windows: [CGRect(x: 200, y: 300, width: 500, height: 300)], config: config)
+        scene.startSled()
+        XCTAssertTrue(scene.hasContent(world: World()))
+        run(scene, config: config, seconds: 20)
+        XCTAssertFalse(scene.hasContent(world: World()))
+    }
+
+    func testFrostIsWipedByThePointerAndClearedWhenItMelts() {
+        let config = quietConfig()
+        let scene = scene(windows: [], config: config)
+        var world = World()
+        world.frost = 1
+        run(scene, world: world, config: config, seconds: 0.5, pointer: CGPoint(x: 100, y: 60))
+        let mask = try? XCTUnwrap(scene.frostMask)
+        XCTAssertNotNil(mask)
+        guard let mask else { return }
+        XCTAssertEqual(mask.bytes.count, mask.width * mask.height)
+        XCTAssertGreaterThan(mask.bytes.max() ?? 0, 200)
+        // Far from the pointer nothing was wiped.
+        XCTAssertEqual(mask.bytes[mask.bytes.count - 1], 0)
+        world.frost = 0
+        run(scene, world: world, config: config, seconds: 0.1)
+        XCTAssertNil(scene.frostMask)
+    }
+
+    func testFrostCreepsInAndMeltsAway() {
+        let director = Director()
+        var config = Config()
+        config.surpriseFrequency = .off
+        director.advance(now: 0, config: config)
+        director.trigger(.frost, now: 0, config: config)
+        var now = 0.0
+        var peak: Float = 0
+        while now < 60 {
+            now += 0.1
+            director.advance(now: now, config: config)
+            peak = max(peak, director.world.frost)
+        }
+        XCTAssertEqual(peak, 1, accuracy: 0.01)
+        XCTAssertEqual(director.world.frost, 0)
+    }
+
+    func testEverySurpriseCanBeSwitchedOff() {
+        var config = Config()
+        for kind in SurpriseKind.allCases {
+            config.setSurprise(kind, enabled: false)
+            XCTAssertFalse(config.isSurpriseEnabled(kind), kind.rawValue)
+        }
+        XCTAssertEqual(Set(config.disabledSurprises).count, SurpriseKind.allCases.count)
+    }
+}

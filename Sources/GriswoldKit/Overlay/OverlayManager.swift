@@ -77,6 +77,7 @@ public final class OverlayManager {
         }
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in
             self?.syncWindows(force: true)
+            self?.refresh()
         }
         let distributed = DistributedNotificationCenter.default()
         observe(distributed, Notification.Name("com.apple.screenIsLocked")) { [weak self] in
@@ -196,10 +197,9 @@ public final class OverlayManager {
             appliedMainOnly = config.mainDisplayOnly
             rebuildScreens()
         }
-        // Window positions only matter while snow can land on them or hide behind them.
+        // Window tops are where snow lands, where the squirrel and sled run, and
+        // how a full-screen app is noticed, so they are tracked whenever the app is on.
         let needsWindows = config.enabled
-            && ((config.snowEnabled && (config.accumulation != .off || config.depthBehindWindows))
-                || !config.showOverFullscreen)
         if needsWindows, !tracker.isRunning {
             tracker.start()
         } else if !needsWindows, tracker.isRunning {

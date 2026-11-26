@@ -19,6 +19,8 @@ public final class Renderer {
     private let meshPipeline: MTLRenderPipelineState
     private let sampler: MTLSamplerState
     public let atlas: Atlas
+    /// Bound when no frost has been wiped: a single zero texel.
+    private let blankMask: MTLTexture
 
     public init?(device: MTLDevice? = MTLCreateSystemDefaultDevice()) {
         guard let device, let queue = device.makeCommandQueue() else { return nil }
@@ -68,21 +70,36 @@ public final class Renderer {
         samplerDescriptor.sAddressMode = .clampToEdge
         samplerDescriptor.tAddressMode = .clampToEdge
         guard let sampler = device.makeSamplerState(descriptor: samplerDescriptor),
-              let atlas = Atlas(device: device, queue: queue)
+              let atlas = Atlas(device: device, queue: queue),
+              let blank = Renderer.makeMask(device: device, width: 1, height: 1)
         else { return nil }
+        var zero: UInt8 = 0
+        blank.replace(region: MTLRegionMake2D(0, 0, 1, 1), mipmapLevel: 0, withBytes: &zero, bytesPerRow: 1)
         self.sampler = sampler
         self.atlas = atlas
+        blankMask = blank
+    }
+
+    /// A one-channel texture recording where frost has been wiped away.
+    static func makeMask(device: MTLDevice, width: Int, height: Int) -> MTLTexture? {
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: .r8Unorm, width: max(width, 1), height: max(height, 1), mipmapped: false
+        )
+        descriptor.usage = [.shaderRead]
+        return device.makeTexture(descriptor: descriptor)
     }
 
     /// Encodes one batch into an already configured render pass.
     func encode(_ batch: RenderBatch, buffers: FrameBuffers, encoder: MTLRenderCommandEncoder,
-                viewport: SIMD2<Float>, scale: Float, time: Float, texture: MTLTexture? = nil) {
+                viewport: SIMD2<Float>, scale: Float, time: Float, texture: MTLTexture? = nil,
+                mask: MTLTexture? = nil) {
         guard !batch.isEmpty else { return }
         var uniforms = FrameUniforms(viewport: viewport, scale: scale, time: time)
         let (spriteBuffer, meshBuffer) = buffers.upload(batch, device: device)
 
         encoder.setFragmentSamplerState(sampler, index: 0)
         encoder.setFragmentTexture(texture ?? atlas.texture, index: 0)
+        encoder.setFragmentTexture(mask ?? blankMask, index: 1)
         encoder.setVertexBytes(&uniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
         encoder.setFragmentBytes(&uniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
 
@@ -111,6 +128,32 @@ public final class Renderer {
                 encoder.drawPrimitives(type: .triangle, vertexStart: range.lowerBound, vertexCount: range.count)
             }
         }
+    }
+}
+
+/// Keeps a GPU copy of one screen's wiped-frost map up to date.
+final class FrostMaskTexture {
+    private var texture: MTLTexture?
+    private var version = -1
+
+    func texture(for scene: ScreenScene, device: MTLDevice) -> MTLTexture? {
+        guard let mask = scene.frostMask else {
+            version = -1
+            return nil
+        }
+        if texture == nil || texture!.width != mask.width || texture!.height != mask.height {
+            texture = Renderer.makeMask(device: device, width: mask.width, height: mask.height)
+            version = -1
+        }
+        guard let texture else { return nil }
+        if version != mask.version {
+            version = mask.version
+            mask.bytes.withUnsafeBytes { raw in
+                texture.replace(region: MTLRegionMake2D(0, 0, mask.width, mask.height), mipmapLevel: 0,
+                                withBytes: raw.baseAddress!, bytesPerRow: mask.width)
+            }
+        }
+        return texture
     }
 }
 

@@ -25,9 +25,17 @@ sips -z 64 64 "$work/icon.png" --out "$out/icon-64.png" >/dev/null
 # Sprites for the live demo.
 mkdir -p "$work/art"
 "$bin" --dump-art "$work/art"
-for name in sleigh reindeerStride reindeerGather; do
+for name in sleigh reindeerStride reindeerGather squirrelStride squirrelGather sled; do
   cp "$work/art/$name.png" "$out/$name.png"
 done
+
+# The real interface, photographed from the running app. This opens the
+# settings window and the popover on screen for a few seconds, so it only runs
+# when asked for: scripts/render-site-assets.sh --ui
+if [[ "${1:-}" == "--ui" ]]; then
+  "$bin" --ui-shots "$work/ui"
+  cp "$work/ui/ui-popover.png" "$work/ui/ui-settings-surprises.png" "$work/ui/ui-settings-snow.png" "$out/"
+fi
 
 shot() {  # shot <name> <snapshot args...>
   local name="$1"; shift
@@ -36,25 +44,22 @@ shot() {  # shot <name> <snapshot args...>
 }
 
 shot shot-piles     --seconds 150 --scale 3 --crop 96,128,640,400 --accumulation deep
-shot shot-santa     --seconds 120 --scale 2 --surprise santa --lead 4.2 --crop 300,60,960,600
-shot shot-aurora    --seconds 120 --scale 2 --surprise aurora --lead 14 --crop 0,0,960,600
-shot shot-presents  --seconds 120 --scale 2 --surprise presents --lead 7 --crop 90,40,960,600
+shot shot-behind    --seconds 150 --scale 2 --layering behind --intensity 0.8 --crop 60,60,960,600
+shot shot-squirrel  --seconds 120 --scale 3 --surprise squirrel --lead 1.3 --accumulation deep --crop 330,30,640,400
+shot shot-sled      --seconds 120 --scale 3 --surprise sled --lead 0.5 --accumulation deep --crop 150,30,640,400
 shot shot-griswold  --seconds 80  --scale 2 --surprise griswold --lead 3.95 --crop 0,0,960,600
-shot shot-snowman   --seconds 150 --scale 2 --surprise snowman --lead 6 --accumulation deep --crop 0,300,960,600
-shot shot-fireworks --seconds 80  --scale 1.34 --surprise fireworks --lead 5.0 --no-lights
-shot shot-star      --seconds 60  --scale 2 --surprise shootingStar --lead 0.5 --crop 480,0,960,600
-shot shot-snowball  --seconds 60  --scale 2 --surprise snowball --lead 1.6 --crop 0,90,960,600
+shot shot-santa     --seconds 120 --scale 2 --surprise santa --lead 4.2 --crop 300,60,960,600
+shot shot-frost     --seconds 60  --scale 2 --surprise frost --lead 22 --stroke 80,40,300,90,520,50,640,110 --crop 0,0,960,600
+shot shot-presents  --seconds 120 --scale 2 --surprise presents --lead 7 --crop 90,40,960,600
 
-strip() {  # strip <name> <snapshot args...>
-  local name="$1"; shift
+strip() {  # strip <name> <height in points> <snapshot args...>
+  local name="$1" height="$2"; shift 2
   "$bin" --snapshot "$work/$name.png" --seconds 40 --scale 2 --no-windows --no-menu-bar \
-    --pattern steady --intensity 0.25 --top-only --crop 24,0,640,100 "$@"
+    --pattern steady --intensity 0.25 --top-only --crop "24,0,640,$height" "$@"
   jpeg "$work/$name.png" "$out/$name.jpg" 1280
 }
-strip lights-c9     --style c9 --palette classic
-strip lights-mini   --style mini --palette warmWhite
-strip lights-globe  --style globe --palette candyCane
-strip lights-icicle --style icicle --palette icy
-strip lights-star   --style star --palette gold
+strip lights-c9     62  --style c9 --palette classic
+strip lights-icicle 100 --style icicle --palette icy
+strip lights-star   62  --style star --palette gold
 
 ls -la "$out"

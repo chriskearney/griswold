@@ -76,6 +76,19 @@ public enum Accumulation: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// How falling snow relates to your windows.
+public enum SnowLayering: String, Codable, CaseIterable, Identifiable {
+    case front, mixed, behind
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .front: return "In front"
+        case .mixed: return "Both"
+        case .behind: return "Behind"
+        }
+    }
+}
+
 public enum SurpriseFrequency: String, Codable, CaseIterable, Identifiable {
     case off, rare, sometimes, often
     public var id: String { rawValue }
@@ -111,11 +124,14 @@ public enum FrameRateMode: String, Codable, CaseIterable, Identifiable {
 }
 
 public enum SurpriseKind: String, Codable, CaseIterable, Identifiable {
-    case santa, shootingStar, gust, presents, aurora, griswold, snowman, snowball, fireworks
+    case santa, squirrel, sled, griswold, frost, shootingStar, gust, presents, aurora, snowman, snowball, fireworks
     public var id: String { rawValue }
     public var title: String {
         switch self {
         case .santa: return "Santa's Sleigh"
+        case .squirrel: return "The Squirrel"
+        case .sled: return "The Greased Sled"
+        case .frost: return "Frost on the Glass"
         case .shootingStar: return "Shooting Star"
         case .gust: return "Gust of Wind"
         case .presents: return "Falling Presents"
@@ -129,6 +145,9 @@ public enum SurpriseKind: String, Codable, CaseIterable, Identifiable {
     public var symbol: String {
         switch self {
         case .santa: return "gift"
+        case .squirrel: return "hare"
+        case .sled: return "flame"
+        case .frost: return "thermometer.snowflake"
         case .shootingStar: return "star"
         case .gust: return "wind"
         case .presents: return "shippingbox"
@@ -152,7 +171,7 @@ public struct Config: Codable, Equatable {
     public var wind: Double = 0.35
     public var accumulation: Accumulation = .drifts
     public var groundSnow = true
-    public var depthBehindWindows = true
+    public var snowLayering: SnowLayering = .mixed
     public var cursorPlay = true
 
     public var lightsEnabled = true

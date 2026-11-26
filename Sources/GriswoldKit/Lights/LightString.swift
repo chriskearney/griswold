@@ -125,6 +125,8 @@ public struct LightBoost {
     public var bloom: Float = 0
     /// 0...1 chance per bulb per frame of sputtering dark.
     public var sputter: Float = 0
+    /// 0...1, how far the whole desktop browns out while the lights hog the power.
+    public var dim: Float = 0
 
     public init() {}
 }

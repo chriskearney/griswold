@@ -77,6 +77,11 @@ public enum SnapshotCommand {
         if let depth = value("--accumulation").flatMap(Accumulation.init(rawValue:)) { options.config.accumulation = depth }
         if let intensity = value("--intensity").flatMap(Double.init) { options.config.snowIntensity = intensity }
         if let surprise = value("--surprise").flatMap(SurpriseKind.init(rawValue:)) { options.surprise = surprise }
+        if let layering = value("--layering").flatMap(SnowLayering.init(rawValue:)) { options.config.snowLayering = layering }
+        // --stroke x1,y1,x2,y2,...: a pointer path in points, for wiping frost.
+        if let numbers = value("--stroke")?.split(separator: ",").compactMap({ Double($0) }), numbers.count >= 4 {
+            options.stroke = stride(from: 0, to: numbers.count - 1, by: 2).map { CGPoint(x: numbers[$0], y: numbers[$0 + 1]) }
+        }
         if arguments.contains("--bottom") { options.config.edgeBottom = true }
         if arguments.contains("--top-only") {
             options.config.edgeLeft = false

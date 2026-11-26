@@ -4,19 +4,30 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject var settings: Settings
+    @State private var tab: Int
+
+    init(settings: Settings, initialTab: Int = 0) {
+        self.settings = settings
+        _tab = State(initialValue: initialTab)
+    }
 
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             SnowSettings(settings: settings)
                 .tabItem { Label("Snow", systemImage: "snowflake") }
+                .tag(0)
             LightSettings(settings: settings)
                 .tabItem { Label("Lights", systemImage: "lightbulb.max") }
+                .tag(1)
             SurpriseSettings(settings: settings)
                 .tabItem { Label("Surprises", systemImage: "gift") }
+                .tag(2)
             GeneralSettings(settings: settings)
                 .tabItem { Label("General", systemImage: "gearshape") }
+                .tag(3)
             AboutView()
                 .tabItem { Label("About", systemImage: "info.circle") }
+                .tag(4)
         }
         .frame(width: 540, height: 560)
     }
@@ -76,16 +87,32 @@ private struct SnowSettings: View {
             }
             .disabled(!settings.config.snowEnabled)
             Section {
-                Toggle("Distant snow falls behind windows", isOn: $settings.config.depthBehindWindows)
+                Picker("Snow falls", selection: $settings.config.snowLayering) {
+                    ForEach(SnowLayering.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text(SnowSettings.layeringNote(settings.config.snowLayering))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Snow swirls around the pointer", isOn: $settings.config.cursorPlay)
             } header: {
-                Text("Depth")
+                Text("Windows")
             } footer: {
                 Text("Griswold only reads where windows are, never what is in them. It needs no permissions.")
             }
             .disabled(!settings.config.snowEnabled)
         }
         .formStyle(.grouped)
+    }
+}
+
+extension SnowSettings {
+    static func layeringNote(_ layering: SnowLayering) -> String {
+        switch layering {
+        case .front: return "All of the snow falls in front of your windows."
+        case .mixed: return "Near snow falls in front of your windows, distant snow behind them."
+        case .behind: return "Snow never crosses a window. It falls behind them and lands on top."
+        }
     }
 }
 
@@ -211,6 +238,9 @@ private struct SurpriseSettings: View {
     static func note(for kind: SurpriseKind) -> String? {
         switch kind {
         case .griswold: return "The lights die, then come back with everything they have."
+        case .squirrel: return "Runs across the tops of your windows."
+        case .sled: return "Three passes, each faster than is wise."
+        case .frost: return "Creeps in from the edges. Wipe it off with the pointer."
         case .gust: return "Needs snow."
         case .fireworks: return "On its own only on New Year's Eve and New Year's Day."
         case .santa: return "Flies across every display."

@@ -23,6 +23,8 @@ public enum Snapshot {
         public var topInset: CGFloat = 26
         public var darkWindows = true
         public var transparent = false
+        /// A pointer stroke made just before the picture is taken (wipes frost).
+        public var stroke: [CGPoint] = []
         /// Extra painting on the stand-in desktop, above its windows and below the snow.
         public var decorate: ((CGContext, CGSize) -> Void)?
 
@@ -67,8 +69,18 @@ public enum Snapshot {
                 fired = true
             }
             director.advance(now: now, config: config)
+            // The stroke plays out over the last second and a half.
+            var pointer: CGPoint?
+            let remaining = options.seconds - now
+            if options.stroke.count >= 2, remaining < 1.5 {
+                let u = (1 - remaining / 1.5) * Double(options.stroke.count - 1)
+                let index = min(Int(u), options.stroke.count - 2)
+                let t = CGFloat(u - Double(index))
+                let a = options.stroke[index], b = options.stroke[index + 1]
+                pointer = CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t)
+            }
             scene.step(dt: Float(step), now: now, config: config, world: director.world,
-                       cursor: nil, cursorVelocity: .zero)
+                       cursor: pointer, cursorVelocity: .zero)
         }
 
         let batch = RenderBatch()
@@ -107,8 +119,10 @@ public enum Snapshot {
             renderer.encode(backdropBatch, buffers: backdropBuffers, encoder: encoder, viewport: viewport,
                             scale: Float(options.scale), time: Float(now), texture: backdrop)
         }
+        let frostMask = FrostMaskTexture()
         renderer.encode(batch, buffers: buffers, encoder: encoder, viewport: viewport,
-                        scale: Float(options.scale), time: Float(now))
+                        scale: Float(options.scale), time: Float(now),
+                        mask: frostMask.texture(for: scene, device: renderer.device))
         encoder.endEncoding()
         commands.commit()
         commands.waitUntilCompleted()
