@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Griswold: snow and Christmas lights for your Mac</title>
+<meta name="description" content="A free Mac app. Snow falls and settles on your windows, Christmas lights hang around your screen, and now and then Santa flies past. No permissions needed.">
+<link rel="canonical" href="https://chonkbase.net/griswold/">
+<meta name="theme-color" content="#070b1e">
+<meta name="color-scheme" content="dark">
+
+<!-- Link previews: Messages, X, Slack, Discord, Facebook, LinkedIn -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Griswold">
+<meta property="og:title" content="Griswold: snow and Christmas lights for your Mac">
+<meta property="og:description" content="Snow that settles on your windows, lights around your screen, and the occasional sleigh. Free for macOS.">
+<meta property="og:url" content="https://chonkbase.net/griswold/">
+<meta property="og:image" content="https://chonkbase.net/griswold/assets/og.jpg">
+<meta property="og:image:secure_url" content="https://chonkbase.net/griswold/assets/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
+<meta property="og:image:alt" content="A Mac desktop at night with Christmas lights strung around the screen, snow piled on top of the windows, and Santa's sleigh flying across.">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Griswold: snow and Christmas lights for your Mac">
+<meta name="twitter:description" content="Snow that settles on your windows, lights around your screen, and the occasional sleigh. Free for macOS.">
+<meta name="twitter:image" content="https://chonkbase.net/griswold/assets/og.jpg">
+<meta name="twitter:image:alt" content="A Mac desktop at night with Christmas lights strung around the screen, snow piled on top of the windows, and Santa's sleigh flying across.">
+
+<link rel="icon" type="image/png" sizes="64x64" href="assets/icon-64.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon-180.png">
+<link rel="stylesheet" href="style.css">
+<link rel="preload" as="font" type="font/woff2" href="assets/fonts/nunito-latin.woff2" crossorigin>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Griswold",
+  "description": "Snow that settles on your windows, Christmas lights around your screen, and the occasional sleigh, for your Mac.",
+  "applicationCategory": "EntertainmentApplication",
+  "operatingSystem": "macOS 13 or later",
+  "url": "https://chonkbase.net/griswold/",
+  "image": "https://chonkbase.net/griswold/assets/icon-512.png",
+  "downloadUrl": "https://chonkbase.net/griswold/download/Griswold.dmg",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="hero" id="top">
+  <canvas id="sky" aria-hidden="true"></canvas>
+
+  <nav class="nav" aria-label="Site">
+    <a class="brand" href="#top">
+      <img src="assets/icon-64.png" width="28" height="28" alt="">
+      <span>Griswold</span>
+    </a>
+    <div class="nav-links">
+      <a href="#snow">Snow</a>
+      <a href="#lights">Lights</a>
+      <a href="#surprises">Surprises</a>
+      <a href="#faq">Questions</a>
+      <a class="nav-cta" href="download/Griswold.dmg" data-download>Download</a>
+    </div>
+  </nav>
+
+  <div class="hero-grid">
+    <div class="pitch">
+      <img class="pitch-icon" src="assets/icon-512.png" width="96" height="96" alt="Griswold app icon">
+      <h1>Griswold</h1>
+      <p class="lede">Snow, lights and the occasional sleigh, for your Mac.</p>
+      <div class="cta-row">
+        <a class="cta" href="download/Griswold.dmg" data-download data-snow>
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3v11m0 0 4.5-4.5M12 14 7.5 9.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Download for Mac</span>
+        </a>
+        <p class="cta-meta"><span data-version>Free</span> · macOS 13 or later · Apple silicon and Intel</p>
+      </div>
+      <p class="phone-note" hidden>Griswold runs on a Mac. <button type="button" class="link-button" data-share>Send yourself this page</button></p>
+    </div>
+
+    <div class="desk" aria-label="Try it: a pretend desktop">
+      <section class="win win-controls" data-snow data-drag style="--x: 0%; --y: 10%;" aria-labelledby="win-controls-title">
+        <header class="win-bar" data-handle>
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <h2 id="win-controls-title">Griswold</h2>
+        </header>
+        <div class="win-body controls">
+          <fieldset>
+            <legend>Bulbs</legend>
+            <div class="seg" data-control="style">
+              <button type="button" data-value="c9" aria-pressed="true">C9</button>
+              <button type="button" data-value="mini" aria-pressed="false">Mini</button>
+              <button type="button" data-value="globe" aria-pressed="false">Globe</button>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Colors</legend>
+            <div class="seg" data-control="palette">
+              <button type="button" data-value="classic" aria-pressed="true">Classic</button>
+              <button type="button" data-value="warm" aria-pressed="false">Warm</button>
+              <button type="button" data-value="candy" aria-pressed="false">Candy</button>
+              <button type="button" data-value="icy" aria-pressed="false">Icy</button>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Pattern</legend>
+            <div class="seg" data-control="pattern">
+              <button type="button" data-value="twinkle" aria-pressed="true">Twinkle</button>
+              <button type="button" data-value="chase" aria-pressed="false">Chase</button>
+              <button type="button" data-value="wave" aria-pressed="false">Wave</button>
+              <button type="button" data-value="steady" aria-pressed="false">Steady</button>
+            </div>
+          </fieldset>
+          <label class="slider">
+            <span>Snow</span>
+            <input type="range" min="0" max="100" value="45" data-control="snow" aria-label="Amount of snow">
+          </label>
+          <div class="control-actions">
+            <button type="button" class="pill" data-action="santa">Send Santa</button>
+            <button type="button" class="pill ghost" data-action="motion" hidden>Play animation</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="win win-term" data-snow data-drag style="--x: 47%; --y: 54%;" aria-labelledby="win-term-title">
+        <header class="win-bar" data-handle>
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <h2 id="win-term-title">zsh</h2>
+        </header>
+        <div class="win-body term" aria-hidden="true">
+          <p><b>$</b> open /Applications/Griswold.app</p>
+          <p class="dim">hanging 25,000 twinkle lights…</p>
+          <p class="dim">checking every bulb… 24,999 ok</p>
+          <p class="dim">found the bad one. it is always one.</p>
+          <p class="ok">drum roll, please</p>
+          <p><b>$</b> <span class="caret"></span></p>
+        </div>
+      </section>
+
+      <section class="win win-note" data-snow data-drag style="--x: 60%; --y: 3%;" aria-labelledby="win-note-title">
+        <header class="win-bar" data-handle>
+          <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <h2 id="win-note-title">Note</h2>
+        </header>
+        <div class="win-body note">
+          <p>Drag a window.</p>
+          <p class="dim">The snow slides off.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <section class="band" id="snow">
+    <div class="wrap split">
+      <div class="copy">
+        <p class="eyebrow">Snow</p>
+        <h2>It lands on things.</h2>
+        <p>Flakes fall in three layers. The far ones drift behind your windows and the near ones in front, so the desktop has depth instead of a flat sheet of dots.</p>
+        <p>The near ones settle. Snow builds up along the top of every window and on the ground, in drifts that slump when they get too steep. Drag a window and its snow slides off. Close one and the snow drops onto whatever is underneath.</p>
+        <ul class="ticks">
+          <li>Wind that wanders, with the odd gust that blows spindrift off the piles</li>
+          <li>Flakes swirl around the pointer when you wave it through them</li>
+          <li>From a few flurries to a blizzard, with a dusting or deep drifts</li>
+        </ul>
+      </div>
+      <figure class="shot">
+        <img src="assets/shot-piles.jpg" width="1600" height="1000" loading="lazy" alt="Close-up of snow piled in soft drifts along the top edge of a window.">
+      </figure>
+    </div>
+  </section>
+
+  <section class="band" id="lights">
+    <div class="wrap">
+      <p class="eyebrow">Lights</p>
+      <h2>Hang them on every display.</h2>
+      <p class="intro">Five kinds of bulb, eleven sets of colors and ten patterns, strung around each screen on the edges you choose. They sway a little when the wind picks up.</p>
+      <div class="strips">
+        <figure><img src="assets/lights-c9.jpg" width="1280" height="200" loading="lazy" alt="A string of large multicolored C9 bulbs."><figcaption>C9 Classic</figcaption></figure>
+        <figure><img src="assets/lights-mini.jpg" width="1280" height="200" loading="lazy" alt="A string of small warm white bulbs."><figcaption>Mini, warm white</figcaption></figure>
+        <figure><img src="assets/lights-globe.jpg" width="1280" height="200" loading="lazy" alt="A string of round red and white bulbs."><figcaption>Globe, candy cane</figcaption></figure>
+        <figure><img src="assets/lights-icicle.jpg" width="1280" height="200" loading="lazy" alt="Strands of icy blue bulbs hanging at different lengths."><figcaption>Icicle, icy blue</figcaption></figure>
+        <figure><img src="assets/lights-star.jpg" width="1280" height="200" loading="lazy" alt="A string of gold star-shaped lights."><figcaption>Star, gold</figcaption></figure>
+      </div>
+      <p class="patterns"><span>Patterns</span> Steady · Twinkle · Chase · Wave · Breathe · Alternate · Sparkle · Meteor · Channel Fade · Showtime</p>
+    </div>
+  </section>
+
+  <section class="band" id="surprises">
+    <div class="wrap">
+      <p class="eyebrow">Surprises</p>
+      <h2>Then, now and then, something happens.</h2>
+      <p class="intro">You choose how often: rarely, sometimes, often, or never. They come more often on Christmas Eve and Christmas Day.</p>
+      <div class="cards">
+        <figure class="card wide">
+          <img src="assets/shot-santa.jpg" width="1600" height="1000" loading="lazy" alt="Santa's sleigh and five reindeer flying across a desktop, trailing gold sparkles.">
+          <figcaption><strong>Santa's sleigh</strong> Crosses every display you have, nose first, with sleigh bells if you want them.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="assets/shot-griswold.jpg" width="1600" height="1000" loading="lazy" alt="Every bulb blazing at once with a huge glow.">
+          <figcaption><strong>The Griswold Moment</strong> The lights sputter, die, and come back with everything they have.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="assets/shot-aurora.jpg" width="1600" height="1000" loading="lazy" alt="Green and violet northern lights rippling across the top of the screen.">
+          <figcaption><strong>Northern lights</strong> Forty seconds of green and violet curtains.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="assets/shot-presents.jpg" width="1600" height="1000" loading="lazy" alt="Wrapped presents sitting in the snow on top of several windows.">
+          <figcaption><strong>Presents</strong> They fall, bounce, and sit in the snow on your windows.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="assets/shot-snowman.jpg" width="1600" height="1000" loading="lazy" alt="A snowman in a top hat standing in the snow at the bottom corner of the screen.">
+          <figcaption><strong>A snowman</strong> Pops up in a corner, hangs around, melts.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="assets/shot-star.jpg" width="1600" height="1000" loading="lazy" alt="A shooting star streaking across the top of the desktop.">
+          <figcaption><strong>Shooting stars</strong> Blink and you miss them.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="assets/shot-snowball.jpg" width="1600" height="1000" loading="lazy" alt="A snowball splattered against the screen, starting to slide down.">
+          <figcaption><strong>A snowball</strong> Somebody out there has good aim.</figcaption>
+        </figure>
+        <figure class="card">
+          <img src="assets/shot-fireworks.jpg" width="1600" height="1000" loading="lazy" alt="Fireworks bursting over the desktop.">
+          <figcaption><strong>Fireworks</strong> On New Year's Eve and New Year's Day.</figcaption>
+        </figure>
+      </div>
+      <p class="also">Also: gusts of wind that blow the snow right off your windows.</p>
+    </div>
+  </section>
+
+  <section class="band" id="polite">
+    <div class="wrap">
+      <p class="eyebrow">Polite about it</p>
+      <h2>It decorates. It does not take over.</h2>
+      <div class="facts">
+        <div class="fact">
+          <h3>No permissions</h3>
+          <p>Griswold asks macOS where your windows are. It never sees what is in them. No Screen Recording, no Accessibility, nothing to approve.</p>
+        </div>
+        <div class="fact">
+          <h3>Easy on the battery</h3>
+          <p>60 frames a second on power, 30 on battery or in Low Power Mode, fewer when only steady lights are showing. It stops drawing when the display sleeps or the screen locks.</p>
+        </div>
+        <div class="fact">
+          <h3>Out of the way</h3>
+          <p>Clicks pass straight through. It steps aside for full-screen apps, games and presentations unless you tell it not to.</p>
+        </div>
+        <div class="fact">
+          <h3>Small and private</h3>
+          <p>One small download. No account, no ads, no tracking. The only thing it ever fetches is a one-line file to see if there is a newer version, and you can switch that off.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="faq">
+    <div class="wrap narrow">
+      <p class="eyebrow">Questions</p>
+      <h2>Before you hang anything.</h2>
+      <div class="faq">
+        <details>
+          <summary>Is it really free?</summary>
+          <p>Yes. No ads, no account, no in-app purchases, no trial.</p>
+        </details>
+        <details>
+          <summary>Which Macs does it run on?</summary>
+          <p>Any Mac on macOS 13 Ventura or later, Apple silicon or Intel. The download is signed with a Developer ID and notarized by Apple, so it opens without warnings.</p>
+        </details>
+        <details>
+          <summary>How do I turn it off?</summary>
+          <p>Click the snowflake in the menu bar. There is a switch at the top, and Quit at the bottom. Right-click the snowflake for a short menu.</p>
+        </details>
+        <details>
+          <summary>Does it work with more than one display?</summary>
+          <p>Yes. Each display gets its own snow and its own string of lights, and Santa flies across all of them. You can also keep it to the main display.</p>
+        </details>
+        <details>
+          <summary>Will snow cover what I am working on?</summary>
+          <p>Snow sits on top of windows, not over their contents, and the piles stay a few points tall. Distant flakes stay behind your windows by default. You can thin the snowfall, turn off settling, or switch the snow off and keep only the lights.</p>
+        </details>
+        <details>
+          <summary>Does it make noise?</summary>
+          <p>Not unless you ask. Sound is off by default. Turn it on and Santa brings sleigh bells.</p>
+        </details>
+        <details>
+          <summary>Why Griswold?</summary>
+          <p>After the patron saint of overdoing the exterior illumination.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <section class="band closing">
+    <div class="wrap narrow centered">
+      <img src="assets/icon-512.png" width="112" height="112" loading="lazy" alt="">
+      <h2>Go on. Decorate.</h2>
+      <a class="cta" href="download/Griswold.dmg" data-download>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3v11m0 0 4.5-4.5M12 14 7.5 9.5M5 19h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Download for Mac</span>
+      </a>
+      <p class="cta-meta"><span data-version>Free</span> · <span data-size>Signed and notarized</span></p>
+      <p class="hash" data-hash hidden></p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>Griswold is free. Made at <a href="https://chonkbase.net/">chonkbase</a> with too many extension cords.</p>
+    <p class="dim">Every picture on this page was drawn by the app itself.</p>
+  </div>
+</footer>
+
+<script src="demo.js" defer></script>
+</body>
+</html>

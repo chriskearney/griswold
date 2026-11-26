@@ -3,7 +3,7 @@ import Foundation
 
 /// Command-line front end for `Snapshot`.
 public enum SnapshotCommand {
-    private static let flags = ["--snapshot", "--dump-atlas", "--icon", "--dmg-background"]
+    private static let flags = ["--snapshot", "--dump-atlas", "--dump-art", "--icon", "--dmg-background", "--link-preview"]
 
     public static func handles(_ arguments: [String]) -> Bool {
         flags.contains { arguments.contains($0) }
@@ -18,6 +18,25 @@ public enum SnapshotCommand {
         if let path = value("--dump-atlas") {
             guard let image = Snapshot.atlasImage(), Snapshot.write(image, to: URL(fileURLWithPath: path)) else {
                 FileHandle.standardError.write(Data("could not render the atlas\n".utf8))
+                return 1
+            }
+            return 0
+        }
+
+        if let directory = value("--dump-art") {
+            let images = Snapshot.artImages()
+            guard !images.isEmpty else { return 1 }
+            for (name, image) in images {
+                Snapshot.write(image, to: URL(fileURLWithPath: directory).appendingPathComponent("\(name).png"))
+            }
+            return 0
+        }
+
+        if let path = value("--link-preview") {
+            let scale = value("--scale").flatMap(Double.init) ?? 2
+            guard let image = BrandArt.linkPreview(scale: CGFloat(scale)),
+                  Snapshot.write(image, to: URL(fileURLWithPath: path)) else {
+                FileHandle.standardError.write(Data("could not render the link preview\n".utf8))
                 return 1
             }
             return 0
@@ -59,6 +78,10 @@ public enum SnapshotCommand {
         if let intensity = value("--intensity").flatMap(Double.init) { options.config.snowIntensity = intensity }
         if let surprise = value("--surprise").flatMap(SurpriseKind.init(rawValue:)) { options.surprise = surprise }
         if arguments.contains("--bottom") { options.config.edgeBottom = true }
+        if arguments.contains("--top-only") {
+            options.config.edgeLeft = false
+            options.config.edgeRight = false
+        }
         if arguments.contains("--no-snow") { options.config.snowEnabled = false }
         if arguments.contains("--no-lights") { options.config.lightsEnabled = false }
         if arguments.contains("--light-windows") { options.darkWindows = false }

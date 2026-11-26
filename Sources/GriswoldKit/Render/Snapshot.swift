@@ -23,6 +23,8 @@ public enum Snapshot {
         public var topInset: CGFloat = 26
         public var darkWindows = true
         public var transparent = false
+        /// Extra painting on the stand-in desktop, above its windows and below the snow.
+        public var decorate: ((CGContext, CGSize) -> Void)?
 
         public init() {}
     }
@@ -95,7 +97,8 @@ public enum Snapshot {
         if !options.transparent,
            let backdrop = DesktopPainter.texture(
                device: renderer.device, size: size, scale: options.scale,
-               windows: options.windows, topInset: options.topInset, dark: options.darkWindows
+               windows: options.windows, topInset: options.topInset, dark: options.darkWindows,
+               decorate: options.decorate
            ) {
             let backdropBatch = RenderBatch()
             backdropBatch.add(SpriteInstance(
@@ -134,6 +137,21 @@ public enum Snapshot {
         return CGImageDestinationFinalize(destination)
     }
 
+    /// Each illustration as its own image (the website's live demo uses them).
+    public static func artImages() -> [(name: String, image: CGImage)] {
+        guard let atlas = atlasImage(), let rendered = Atlas.render() else { return [] }
+        var result: [(String, CGImage)] = []
+        for art in Art.allCases {
+            let uv = rendered.rects[art.rawValue]
+            let rect = CGRect(
+                x: CGFloat(uv.x) * CGFloat(Atlas.width), y: CGFloat(uv.y) * CGFloat(Atlas.height),
+                width: CGFloat(uv.z - uv.x) * CGFloat(Atlas.width), height: CGFloat(uv.w - uv.y) * CGFloat(Atlas.height)
+            )
+            if let piece = atlas.cropping(to: rect) { result.append(("\(art)", piece)) }
+        }
+        return result
+    }
+
     /// The art atlas as an image, for checking the illustrations.
     public static func atlasImage() -> CGImage? {
         guard let rendered = Atlas.render(),
@@ -150,7 +168,8 @@ public enum Snapshot {
 /// Paints a plausible desktop: wallpaper, a menu bar, and a few windows.
 enum DesktopPainter {
     static func texture(device: MTLDevice, size: CGSize, scale: CGFloat, windows: [CGRect],
-                        topInset: CGFloat, dark: Bool) -> MTLTexture? {
+                        topInset: CGFloat, dark: Bool,
+                        decorate: ((CGContext, CGSize) -> Void)? = nil) -> MTLTexture? {
         let width = Int(size.width * scale)
         let height = Int(size.height * scale)
         var pixels = [UInt8](repeating: 0, count: width * height * 4)
@@ -163,6 +182,7 @@ enum DesktopPainter {
             c.translateBy(x: 0, y: CGFloat(height))
             c.scaleBy(x: scale, y: -scale)
             paint(c, size: size, windows: windows, topInset: topInset, dark: dark)
+            decorate?(c, size)
             return true
         }
         guard ok else { return nil }

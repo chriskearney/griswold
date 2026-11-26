@@ -75,6 +75,14 @@ public final class SparkSystem {
             let age = s.life / s.lifetime
             let flicker = 0.72 + 0.28 * sinf(time * 17 + s.twinkle)
             let alpha = min(age * 2.2, 1) * flicker
+            if s.size >= 6 {
+                // Big sparks (firework stars) get a soft bloom of their own colour.
+                batch.add(SpriteInstance(
+                    pos: s.position, size: SIMD2(repeating: s.size * 4.5),
+                    color: SIMD4(s.colour.x, s.colour.y, s.colour.z, alpha * 0.32),
+                    shape: Shape.halo, p0: 0.1
+                ))
+            }
             batch.add(SpriteInstance(
                 pos: s.position, size: SIMD2(repeating: s.size * (0.6 + 0.4 * age) * 2),
                 color: SIMD4(s.colour.x, s.colour.y, s.colour.z, alpha),

@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import CoreText
 import Foundation
@@ -253,24 +254,82 @@ public enum BrandArt {
         })
     }
 
+    /// The system's rounded face, as used for the app's own title.
+    static func roundedFont(size: CGFloat, weight: NSFont.Weight) -> CTFont {
+        let base = NSFont.systemFont(ofSize: size, weight: weight)
+        if let descriptor = base.fontDescriptor.withDesign(.rounded),
+           let rounded = NSFont(descriptor: descriptor, size: size) {
+            return rounded as CTFont
+        }
+        return base as CTFont
+    }
+
     private static func text(_ c: CGContext, _ string: String, at centre: CGPoint, size: CGFloat, weight: CGFloat) {
-        let traits = [kCTFontWeightTrait: weight] as CFDictionary
-        let descriptor = CTFontDescriptorCreateWithAttributes([
-            kCTFontFamilyNameAttribute: "SF Pro Rounded", kCTFontTraitsAttribute: traits,
-        ] as CFDictionary)
-        let font = CTFontCreateWithFontDescriptor(descriptor, size, nil)
+        draw(c, string, at: centre, font: roundedFont(size: size, weight: .medium),
+             colour: CGColor(gray: 1, alpha: 0.92), centred: true)
+    }
+
+    /// Draws one line of text in a context whose y axis points down.
+    static func draw(_ c: CGContext, _ string: String, at point: CGPoint, font: CTFont, colour: CGColor,
+                     centred: Bool = false, tracking: CGFloat = 0) {
         let attributes: [NSAttributedString.Key: Any] = [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
-            NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(gray: 1, alpha: 0.92),
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): colour,
+            NSAttributedString.Key(kCTKernAttributeName as String): tracking,
         ]
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: string, attributes: attributes))
         let bounds = CTLineGetBoundsWithOptions(line, .useOpticalBounds)
-        // The context is flipped for drawing; flip back locally so glyphs are upright.
+        // Flip back locally so glyphs are upright.
         c.saveGState()
-        c.translateBy(x: centre.x - bounds.width / 2, y: centre.y)
+        c.translateBy(x: centred ? point.x - bounds.width / 2 : point.x, y: point.y)
         c.scaleBy(x: 1, y: -1)
         c.textPosition = .zero
         CTLineDraw(line, c)
         c.restoreGState()
+    }
+
+    // MARK: Link preview
+
+    /// The 1200 x 630 card shown when the website is shared in Messages, X, Slack and so on.
+    public static func linkPreview(scale: CGFloat = 2) -> CGImage? {
+        var options = Snapshot.Options()
+        options.size = CGSize(width: 1200, height: 630)
+        options.scale = scale
+        options.seconds = 140
+        options.topInset = 0
+        options.surprise = .santa
+        options.lead = 3.3
+        options.config.snowIntensity = 0.5
+        options.config.accumulation = .deep
+        options.config.bulbScale = 1.35
+        options.config.spacing = 1.1
+        options.config.glow = 0.9
+        options.config.pattern = .steady
+        options.config.edgeBottom = false
+        options.windows = [
+            CGRect(x: 640, y: 318, width: 470, height: 420),
+            CGRect(x: 786, y: 196, width: 330, height: 300),
+        ]
+        let icon = BrandArt.icon()
+        options.decorate = { c, _ in
+            if let icon {
+                // Core Graphics draws images bottom-up; flip around the icon's own box.
+                c.saveGState()
+                c.translateBy(x: 62, y: 190 + 132)
+                c.scaleBy(x: 1, y: -1)
+                c.draw(icon, in: CGRect(x: 0, y: 0, width: 132, height: 132))
+                c.restoreGState()
+            }
+            c.saveGState()
+            c.setShadow(offset: CGSize(width: 0, height: -6), blur: 26, color: CGColor(gray: 0, alpha: 0.55))
+            draw(c, "Griswold", at: CGPoint(x: 74, y: 430), font: roundedFont(size: 118, weight: .heavy),
+                 colour: CGColor(gray: 1, alpha: 1), tracking: -2)
+            draw(c, "Snow, lights and the occasional", at: CGPoint(x: 80, y: 492),
+                 font: roundedFont(size: 34, weight: .medium), colour: CGColor(gray: 1, alpha: 0.86))
+            draw(c, "sleigh, for your Mac.", at: CGPoint(x: 80, y: 536),
+                 font: roundedFont(size: 34, weight: .medium), colour: CGColor(gray: 1, alpha: 0.86))
+            c.restoreGState()
+        }
+        return Snapshot.render(options)
     }
 }

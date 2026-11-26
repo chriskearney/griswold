@@ -61,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         model.checkForUpdates(userInitiated: false)
+        if CommandLine.arguments.contains("--settings") { openSettings() }
 
         let defaults = UserDefaults.standard
         if !defaults.bool(forKey: AppDelegate.welcomedKey) {

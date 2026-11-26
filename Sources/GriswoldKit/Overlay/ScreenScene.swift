@@ -369,14 +369,15 @@ public final class ScreenScene {
             [SIMD3(0.9, 0.4, 1.0), SIMD3(1.0, 0.8, 1.0)],
         ]
         var delay: Float = 0
-        for _ in 0..<(7 + rng.int(4)) {
+        for _ in 0..<(11 + rng.int(5)) {
             shells.append(Shell(
                 position: SIMD2(rng.range(size.x * 0.15, size.x * 0.85), size.y + 10),
                 // Launch speed chosen so the shell tops out in the upper half of the screen.
                 velocity: SIMD2(rng.signed() * 60, -sqrtf(2 * 520 * size.y * rng.range(0.5, 0.78))),
                 delay: delay, colours: palettes[rng.int(palettes.count)]
             ))
-            delay += rng.range(0.5, 1.5)
+            // Mostly quick volleys, with the odd pause for breath.
+            delay += rng.chance(0.3) ? rng.range(0.9, 1.6) : rng.range(0.12, 0.5)
         }
     }
 
@@ -555,8 +556,8 @@ public final class ScreenScene {
             sparks.emit(at: s.position, velocity: SIMD2(rng.signed() * 14, rng.range(20, 70)),
                         colour: SIMD3(1, 0.86, 0.55), size: rng.range(2, 3.5), life: rng.range(0.25, 0.5), gravity: 30)
             if s.velocity.y > -70 {
-                sparks.burst(at: s.position, count: 110 + rng.int(60), speed: 70...360,
-                             colours: s.colours, size: 6...13, life: 1.1...2.4, gravity: 95, drag: 1.5)
+                sparks.burst(at: s.position, count: 130 + rng.int(70), speed: 80...430,
+                             colours: s.colours, size: 6...13, life: 1.4...2.9, gravity: 90, drag: 1.35)
                 sparks.burst(at: s.position, count: 10, speed: 0...40,
                              colours: [SIMD3(1, 1, 1)], size: 26...44, life: 0.2...0.45, gravity: 0, drag: 2)
                 shells.remove(at: i)

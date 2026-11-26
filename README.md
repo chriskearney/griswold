@@ -38,7 +38,7 @@ swift run -c release Griswold --snapshot icicles.png --preset wonderland
 scripts/make-icon.sh             # regenerate Resources/AppIcon.icns
 ```
 
-Options: `--width`, `--height`, `--scale`, `--seconds`, `--preset`, `--style`, `--palette`, `--pattern`, `--accumulation`, `--intensity`, `--surprise`, `--lead`, `--crop x,y,w,h`, `--no-snow`, `--no-lights`, `--no-windows`, `--light-windows`, `--transparent`.
+Options: `--width`, `--height`, `--scale`, `--seconds`, `--preset`, `--style`, `--palette`, `--pattern`, `--accumulation`, `--intensity`, `--surprise`, `--lead`, `--crop x,y,w,h`, `--top-only`, `--bottom`, `--no-snow`, `--no-lights`, `--no-windows`, `--no-menu-bar`, `--light-windows`, `--transparent`.
 
 ## Layout
 
